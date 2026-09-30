@@ -116,3 +116,7 @@ and IOPS rise until the node recovers automatically.
 This is a visual and educational PoV. It uses synthetic in-memory data and does
 not connect to a real Ops Manager installation. MongoDB, Ops Manager, and
 Enterprise Advanced are trademarks of MongoDB, Inc.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
