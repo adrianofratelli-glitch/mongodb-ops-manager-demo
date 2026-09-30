@@ -1,0 +1,114 @@
+import axios from 'axios'
+import { MockAPI } from './mock'
+
+// MODO MOCK: no build estático (GitHub Pages) não há backend Python.
+// Defina VITE_USE_MOCK=1 no build para usar os dados embutidos no cliente.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1' || import.meta.env.VITE_USE_MOCK === 'true'
+
+// Base URL: em dev usa o proxy do Vite (/api → backend). Em prod, defina VITE_API_URL.
+const baseURL = import.meta.env.VITE_API_URL || ''
+
+export const api = axios.create({
+  baseURL,
+  timeout: 15000,
+})
+
+// ── Endpoints tipados (camada de serviço — backend real via axios) ──
+const RealAPI = {
+  meta: () => api.get('/api/meta').then((r) => r.data),
+  dashboard: () => api.get('/api/dashboard').then((r) => r.data),
+
+  clusters: () => api.get('/api/clusters').then((r) => r.data),
+  createCluster: (body) => api.post('/api/clusters', body).then((r) => r.data),
+  deleteCluster: (id) => api.delete(`/api/clusters/${id}`).then((r) => r.data),
+  editCluster: (id, body) => api.put(`/api/clusters/${id}`, body).then((r) => r.data),
+  addNode: (id, body) => api.post(`/api/clusters/${id}/nodes`, body).then((r) => r.data),
+  stepDown: (id, nodeIdx) => api.post(`/api/clusters/${id}/stepdown?node_idx=${nodeIdx}`).then((r) => r.data),
+  resyncNode: (id, nodeIdx) => api.post(`/api/clusters/${id}/resync?node_idx=${nodeIdx}`).then((r) => r.data),
+  upgradeCluster: (id, body) => api.post(`/api/clusters/${id}/upgrade`, body).then((r) => r.data),
+
+  automation: () => api.get('/api/automation').then((r) => r.data),
+  applyPending: (pid) => api.post(`/api/automation/pending/${pid}/apply`).then((r) => r.data),
+  discardPending: (pid) => api.delete(`/api/automation/pending/${pid}`).then((r) => r.data),
+  agents: () => api.get('/api/agents').then((r) => r.data),
+  upgradeAgents: () => api.post('/api/agents/upgrade').then((r) => r.data),
+  agentLogs: (host) => api.get(`/api/agents/${encodeURIComponent(host)}/logs`).then((r) => r.data),
+
+  metrics: (id) => api.get(`/api/metrics/${id}`).then((r) => r.data),
+  metricsTick: (id) => api.get(`/api/metrics/${id}/tick`).then((r) => r.data),
+  realtime: (id) => api.get(`/api/realtime/${id}`).then((r) => r.data),
+  killOp: (id, opid) => api.post(`/api/realtime/${id}/kill/${opid}`).then((r) => r.data),
+  perfAdvisor: () => api.get('/api/perf-advisor').then((r) => r.data),
+  createIndex: (idx) => api.post(`/api/perf-advisor/index/${idx}`).then((r) => r.data),
+
+  backup: () => api.get('/api/backup').then((r) => r.data),
+  takeSnapshot: (cluster) => api.post(`/api/backup/snapshot?cluster=${encodeURIComponent(cluster)}`).then((r) => r.data),
+  deleteSnapshot: (sid) => api.delete(`/api/backup/snapshot/${sid}`).then((r) => r.data),
+
+  restoreJobs: () => api.get('/api/restore').then((r) => r.data),
+  startRestore: (body) => api.post('/api/restore', body).then((r) => r.data),
+
+  alerts: () => api.get('/api/alerts').then((r) => r.data),
+  acknowledgeAlert: (aid) => api.post(`/api/alerts/${aid}/acknowledge`).then((r) => r.data),
+  resolveAlert: (aid) => api.post(`/api/alerts/${aid}/resolve`).then((r) => r.data),
+  addAlertConfig: (body) => api.post('/api/alerts/configs', body).then((r) => r.data),
+  deleteAlertConfig: (idx) => api.delete(`/api/alerts/configs/${idx}`).then((r) => r.data),
+
+  users: () => api.get('/api/users').then((r) => r.data),
+  addUser: (body) => api.post('/api/users', body).then((r) => r.data),
+  deleteUser: (name) => api.delete(`/api/users/${name}`).then((r) => r.data),
+  roles: () => api.get('/api/roles').then((r) => r.data),
+  addRole: (body) => api.post('/api/roles', body).then((r) => r.data),
+  deleteRole: (idx) => api.delete(`/api/roles/${idx}`).then((r) => r.data),
+  ips: () => api.get('/api/security/ip').then((r) => r.data),
+  addIp: (body) => api.post('/api/security/ip', body).then((r) => r.data),
+  deleteIp: (idx) => api.delete(`/api/security/ip/${idx}`).then((r) => r.data),
+  audit: () => api.get('/api/audit').then((r) => r.data),
+
+  activity: () => api.get('/api/activity').then((r) => r.data),
+  reset: () => api.post('/api/reset').then((r) => r.data),
+}
+
+const UNTRACED = new Set(['metricsTick', 'realtime'])
+
+function withCallTrace(source) {
+  return Object.fromEntries(
+    Object.entries(source).map(([operation, fn]) => [
+      operation,
+      UNTRACED.has(operation) ? fn :
+      async (...args) => {
+        const started = performance.now()
+        try {
+          const result = await fn(...args)
+          window.dispatchEvent(new CustomEvent('ops-manager-api-call', {
+            detail: {
+              operation,
+              args,
+              elapsed_ms: Math.round((performance.now() - started) * 10) / 10,
+              mode: USE_MOCK ? 'mock local' : 'FastAPI local',
+            },
+          }))
+          return result
+        } catch (error) {
+          window.dispatchEvent(new CustomEvent('ops-manager-api-call', {
+            detail: {
+              operation,
+              args,
+              elapsed_ms: Math.round((performance.now() - started) * 10) / 10,
+              mode: USE_MOCK ? 'mock local' : 'FastAPI local',
+              error: error.message,
+            },
+          }))
+          throw error
+        }
+      },
+    ])
+  )
+}
+
+// Exporta o backend real (axios) ou o mock embutido conforme o build e registra
+// a última chamada para a gaveta técnica da interface.
+export const API = withCallTrace(USE_MOCK ? MockAPI : RealAPI)
+
+// Mensagem legível de erro: prefere o `detail` do FastAPI/mock ao texto do axios.
+export const errMsg = (e) => e?.response?.data?.detail || e?.message || String(e)

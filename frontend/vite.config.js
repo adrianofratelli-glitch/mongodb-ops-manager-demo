@@ -1,0 +1,73 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
+
+// Em dev, /api é redirecionado para o backend FastAPI (porta 8077).
+// base: '/' em dev/local; '/mongodb-ops-manager-demo/' no build do GitHub Pages (via VITE_BASE).
+export default defineConfig({
+  base: process.env.VITE_BASE || '/',
+  // nodePolyfills: alguns transitive deps do LeafyGreen (@emotion/server →
+  // html-tokenize) usam Buffer/process do Node, que não existem no browser.
+  plugins: [nodePolyfills({ globals: { Buffer: true, global: true, process: true } }), react()],
+  // React e LeafyGreen mudam muito pouco: em chunks próprios, o navegador
+  // reaproveita o cache entre deploys em vez de rebaixar 1 MB toda vez.
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react'
+          if (id.includes('@leafygreen-ui') || id.includes('@lg-')) return 'leafygreen'
+          if (id.includes('@emotion') || id.includes('polished')) return 'emotion'
+        },
+      },
+    },
+  },
+  server: {
+    host: '127.0.0.1',
+    port: 5377,
+    strictPort: true,
+    proxy: {
+      '/api': 'http://127.0.0.1:8077',
+    },
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 5377,
+    strictPort: true,
+    proxy: {
+      '/api': 'http://127.0.0.1:8077',
+    },
+  },
+  // Pré-otimiza TODAS as deps LeafyGreen no startup, evitando o reload/tela-branca
+  // que acontece quando o Vite descobre novas deps ao navegar entre páginas.
+  optimizeDeps: {
+    include: [
+      'react', 'react-dom', 'axios',
+      '@leafygreen-ui/badge',
+      '@leafygreen-ui/banner',
+      '@leafygreen-ui/button',
+      '@leafygreen-ui/card',
+      '@leafygreen-ui/confirmation-modal',
+      '@leafygreen-ui/emotion',
+      '@leafygreen-ui/icon',
+      '@leafygreen-ui/icon-button',
+      '@leafygreen-ui/leafygreen-provider',
+      '@leafygreen-ui/lib',
+      '@leafygreen-ui/loading-indicator',
+      '@leafygreen-ui/menu',
+      '@leafygreen-ui/modal',
+      '@leafygreen-ui/palette',
+      '@leafygreen-ui/select',
+      '@leafygreen-ui/side-nav',
+      '@leafygreen-ui/table',
+      '@leafygreen-ui/tabs',
+      '@leafygreen-ui/text-input',
+      '@leafygreen-ui/toast',
+      '@leafygreen-ui/toggle',
+      '@leafygreen-ui/tokens',
+      '@leafygreen-ui/typography',
+    ],
+  },
+})
