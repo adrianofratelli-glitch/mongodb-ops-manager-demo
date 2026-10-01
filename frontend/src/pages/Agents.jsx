@@ -59,7 +59,7 @@ export default function Agents({ toast }) {
           sub={desatualizados ? <Badge variant="yellow">{desatualizados} desatualizado(s)</Badge> : <Badge variant="green">Tudo atualizado</Badge>} />
       </Grid>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>Agent List</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>Agent List</Subtitle></div>
         <DataTable columns={cols} rows={data.agents} />
       </Card>
       <AgentLogsModal open={!!logs} data={logs} onClose={() => setLogs(null)} />

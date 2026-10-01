@@ -65,7 +65,7 @@ export default function Backup({ toast, refreshCounts }) {
         <StatCard label="Oplog Coverage" value="48h" sub={<Badge variant="green">PIT ready</Badge>} />
       </Grid>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb`, display: 'flex', alignItems: 'center' }}>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5`, display: 'flex', alignItems: 'center' }}>
           <Subtitle>Snapshots</Subtitle>
           <div style={{ marginLeft: 'auto', width: 200 }}>
             <Select aria-label="Filter" value={filter} onChange={setFilter} allowDeselect={false} size="small">

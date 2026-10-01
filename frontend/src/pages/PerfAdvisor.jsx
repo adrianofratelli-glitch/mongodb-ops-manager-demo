@@ -60,11 +60,11 @@ export default function PerfAdvisor({ toast, refreshCounts }) {
         <StatCard label="Collections Scanned" value={data.collections_scanned} sub={<Description>across all databases</Description>} />
       </Grid>
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: spacing[600] }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>💡 Suggested Indexes</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>💡 Suggested Indexes</Subtitle></div>
         <DataTable columns={idxCols} rows={data.index_suggestions} />
       </Card>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>🐌 Slowest Queries</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>🐌 Slowest Queries</Subtitle></div>
         <DataTable columns={slowCols} rows={data.slow_queries} />
       </Card>
     </div>

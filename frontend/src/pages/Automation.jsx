@@ -54,13 +54,13 @@ export default function Automation({ toast, refreshCounts }) {
       </Grid>
 
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: spacing[600] }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>⏳ Pending Changes (requires review)</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>⏳ Pending Changes (requires review)</Subtitle></div>
         <DataTable columns={pendCols} rows={data.pending}
           empty={<EmptyState title="Nenhuma mudança pendente">Todas as alterações foram aplicadas ou descartadas.</EmptyState>} />
       </Card>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>Automation History</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>Automation History</Subtitle></div>
         <DataTable columns={histCols} rows={data.history} />
       </Card>
     </div>

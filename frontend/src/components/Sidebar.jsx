@@ -10,7 +10,7 @@ export default function Sidebar({ active, onNavigate, counts = {} }) {
       <label style={{ display: 'block', padding: 12 }}>
         Área operacional
         <select aria-label="Área operacional" value={selected.group}
-          style={{ width: '100%', marginTop: 8, padding: 8, color: 'inherit', background: 'var(--bg-card, #112733)' }}
+          style={{ width: '100%', marginTop: 8, padding: 8, color: 'inherit', background: 'var(--bg-card, #001e2b)' }}
           onChange={(event) => onNavigate(SECTIONS.find((group) => group.group === event.target.value).items[0].id)}>
           {SECTIONS.map((group) => <option key={group.group}>{group.group}</option>)}
         </select>

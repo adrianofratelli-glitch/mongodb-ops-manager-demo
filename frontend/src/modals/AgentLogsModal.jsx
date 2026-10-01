@@ -16,7 +16,7 @@ export default function AgentLogsModal({ open, data, onClose }) {
           <Body style={{ color: palette.gray.base, marginBottom: spacing[300] }}>
             {data.host} · cluster {data.cluster} · agent {data.version}
           </Body>
-          <div style={{ background: '#001923', borderRadius: 8, padding: spacing[300], maxHeight: 380, overflowY: 'auto' }}>
+          <div style={{ background: '#03111a', borderRadius: 8, padding: spacing[300], maxHeight: 380, overflowY: 'auto' }}>
             {data.lines.map((l, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '3px 0', fontSize: 12.5 }}>
                 <code style={{ color: palette.gray.light1 }}>{l.ts}</code>

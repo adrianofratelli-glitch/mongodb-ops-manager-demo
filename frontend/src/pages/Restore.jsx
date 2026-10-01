@@ -74,7 +74,7 @@ export default function Restore({ toast }) {
     <div>
       <PageHeader title="Restore" subtitle="Point-in-time & snapshot restore" />
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: spacing[600] }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>Restore Jobs</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>Restore Jobs</Subtitle></div>
         <DataTable columns={cols} rows={jobs} />
       </Card>
       <Card>

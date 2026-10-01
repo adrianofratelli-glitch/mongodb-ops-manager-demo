@@ -64,7 +64,7 @@ export default function Auth({ toast }) {
         </Card>
       </Grid>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #e8edeb` }}><Subtitle>🌐 IP Access List</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>🌐 IP Access List</Subtitle></div>
         <DataTable columns={ipCols} rows={ips} />
       </Card>
     </div>
