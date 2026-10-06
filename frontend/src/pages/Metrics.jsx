@@ -51,17 +51,19 @@ export default function Metrics() {
   const [m, setM] = useState(null)
   const [live, setLive] = useState(true)
   const [loaded, setLoaded] = useState(false)
+  const [offline, setOffline] = useState(false)
+  const loadClusters = () => API.clusters()
+    .then((cs) => { setOffline(false); setClusters(cs); setCid((cur) => (cs.some((c) => c.id === cur) ? cur : cs[0]?.id)); setLoaded(true) })
+    .catch(() => { setOffline(true); setLoaded(true) })
   const inFlight = useRef(false)
 
-  useEffect(() => {
-    API.clusters().then((cs) => { setClusters(cs); setCid(cs[0]?.id); setLoaded(true) }).catch(() => setLoaded(true))
-  }, [])
+  useEffect(() => { loadClusters() }, [])
 
   // Troca de cluster (ou refresh manual) recarrega a janela inteira.
   const reload = useCallback(() => {
     if (!cid) return
     setM(null)
-    API.metrics(cid).then(setM).catch(() => {})
+    API.metrics(cid).then(setM).catch(() => setOffline(true))
   }, [cid])
   useEffect(() => { reload() }, [reload])
 
@@ -78,6 +80,22 @@ export default function Metrics() {
     }, TICK_MS)
     return () => clearInterval(id)
   }, [cid, live])
+
+
+  if (offline) {
+    return (
+      <div role="alert">
+        <PageHeader title="Metrics" subtitle="Backend indisponível" />
+        <Card>
+          <Subtitle style={{ fontSize: 14 }}>Não foi possível falar com a API local da demo</Subtitle>
+          <Description style={{ marginTop: spacing[200] }}>
+            Verifique se o backend está rodando em 127.0.0.1:8077 (<code>./start.sh</code>). Se o processo foi reiniciado, o estado volta ao inicial.
+          </Description>
+          <Button style={{ marginTop: spacing[300] }} onClick={() => { setOffline(false); setLive(true); loadClusters() }}>Tentar novamente</Button>
+        </Card>
+      </div>
+    )
+  }
 
   if (loaded && clusters.length === 0) {
     return (

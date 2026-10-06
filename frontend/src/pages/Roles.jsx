@@ -39,7 +39,7 @@ export default function Roles({ toast }) {
     { header: 'Privileges', render: (r) => <span style={{ fontSize: 12, color: '#888' }}>{r.priv}</span> },
     { header: 'Inherits', render: (r) => r.inherits === '(none)' ? '—' : <Badge variant="blue">{r.inherits}</Badge> },
     { header: 'Users', render: (r) => `${r.users} user${r.users !== 1 ? 's' : ''}` },
-    { header: 'Actions', render: (r, i) => <Button size="xsmall" variant="dangerOutline" onClick={() => setToDelete({ idx: i, name: r.name })}>Delete</Button> },
+    { header: 'Actions', render: (r) => <Button size="xsmall" variant="dangerOutline" onClick={() => setToDelete({ name: r.name })}>Delete</Button> },
   ]
 
   return (
@@ -64,7 +64,7 @@ export default function Roles({ toast }) {
       </Modal>
 
       <ConfirmationModal open={!!toDelete} title={`Delete role ${toDelete?.name}?`} buttonText="Delete" variant="danger"
-        onConfirm={() => { const i = toDelete.idx; setToDelete(null); del(i) }}
+        onConfirm={() => { const name = toDelete.name; setToDelete(null); del(name) }}
         onCancel={() => setToDelete(null)}>
         Usuários que dependem desta role perderão os privilégios associados.
       </ConfirmationModal>

@@ -8,12 +8,16 @@ import ConfirmationModal from '@leafygreen-ui/confirmation-modal'
 import { palette } from '@leafygreen-ui/palette'
 import { spacing } from '@leafygreen-ui/tokens'
 import { useDarkMode } from '@leafygreen-ui/leafygreen-provider'
-import { PageHeader, DataTable, MetaRow, Loading } from '../components/ui'
+import { PageHeader, DataTable, MetaRow, Loading, EmptyState } from '../components/ui'
 import NewDeploymentModal from '../modals/NewDeploymentModal'
 import ConnectModal from '../modals/ConnectModal'
 import { API, errMsg } from '../api/client'
 
 const TYPE_BADGE = { rs: ['blue', 'Replica Set'], sharded: ['green', 'Sharded Cluster'], standalone: ['yellow', 'Standalone'] }
+// Próximo patch da mesma release series (ex.: 7.0.5 → 7.0.6): o caminho seguro
+// que o Ops Manager oferece por padrão. Saltos de release series ficam para o backend validar.
+const nextPatch = (v) => { const [a, b, c] = String(v).split('-')[0].split('.').map(Number); return `${a}.${b}.${(c || 0) + 1}` }
+
 const STATUS_BADGE = { healthy: ['green', '● Healthy'], warning: ['yellow', '● Warning'], critical: ['red', '● Critical'] }
 
 function DiskBar({ pct }) {
@@ -39,6 +43,8 @@ function ClusterBlock({ c, toast, reload }) {
   const [confirmTerminate, setConfirmTerminate] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const upgrading = !!c.upgrade
+  const target = nextPatch(c.version)
 
   const doAction = async (fn, msg) => {
     setBusy(true)
@@ -62,14 +68,14 @@ function ClusterBlock({ c, toast, reload }) {
     { header: 'Disk', render: (n) => <DiskBar pct={n.disk} /> },
     { header: 'Lag', key: 'lag' },
     { header: 'Actions', render: (n, i) => (
-      (n.role === 'PRIMARY' || n.role === 'Shard PRIMARY')
-        ? <Button size="xsmall" onClick={() => doAction(() => API.stepDown(c.id, i), `Nova eleição em ${c.name}`)}>Step Down</Button>
-        : (n.role !== 'mongos' && n.role !== 'Config Server')
-          ? <Button size="xsmall" disabled={busy || !!n.resync_until}
-              onClick={() => doAction(() => API.resyncNode(c.id, i).then((r) => { setTimeout(reload, (r.seconds || 25) * 1000 + 500) }), `Initial sync iniciado em ${n.host}`)}>
+      n.role === 'PRIMARY'
+        ? <Button size="xsmall" disabled={busy || upgrading} onClick={() => doAction(() => API.stepDown(c.id, i), `Nova eleição em ${c.name}`)}>Step Down</Button>
+        : n.role === 'SECONDARY'
+          ? <Button size="xsmall" disabled={busy || upgrading || !!n.resync_until}
+              onClick={() => doAction(() => API.resyncNode(c.id, i), `Initial sync iniciado em ${n.host}`)}>
               {n.resync_until ? 'Sincronizando…' : 'Resync'}
             </Button>
-          : null
+          : <Description>—</Description>
     ) },
   ]
 
@@ -80,10 +86,19 @@ function ClusterBlock({ c, toast, reload }) {
         <Subtitle style={{ fontSize: 15 }}>{c.name}</Subtitle>
         <Badge variant={sb}>{sl}</Badge>
         <Description style={{ marginLeft: 8 }}>MongoDB {c.version} · {c.nodes.length} node{c.nodes.length > 1 ? 's' : ''}</Description>
+        {upgrading && (
+          <Badge variant="blue" aria-live="polite">
+            Rolling upgrade → {c.upgrade.target}: {c.upgrade.done}/{c.upgrade.total} processos (simulado)
+          </Badge>
+        )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <Button size="xsmall" variant="primary" leftGlyph={<Icon glyph="Connect" />} onClick={() => setConnectOpen(true)}>Connect</Button>
-          {c.type === 'rs' && <Button size="xsmall" leftGlyph={<Icon glyph="Plus" />} onClick={() => doAction(() => API.addNode(c.id, {}), `Nó adicionado a ${c.name}`)} disabled={busy}>Add Node</Button>}
-          <Button size="xsmall" leftGlyph={<Icon glyph="ArrowUp" />} onClick={() => doAction(() => API.upgradeCluster(c.id, { target_version: '7.0.6' }), `${c.name} atualizado para 7.0.6`)} disabled={busy}>Upgrade</Button>
+          {c.type === 'rs' && <Button size="xsmall" leftGlyph={<Icon glyph="Plus" />} onClick={() => doAction(() => API.addNode(c.id, {}), `Nó adicionado a ${c.name}`)} disabled={busy || upgrading}>Add Node</Button>}
+          <Button size="xsmall" leftGlyph={<Icon glyph="ArrowUp" />}
+            onClick={() => doAction(() => API.upgradeCluster(c.id, { target_version: target }), `Rolling upgrade de ${c.name} para ${target} iniciado`)}
+            disabled={busy || upgrading}>
+            {upgrading ? 'Upgrade em andamento…' : `Upgrade → ${target}`}
+          </Button>
           <Button size="xsmall" variant="dangerOutline" leftGlyph={<Icon glyph="Stop" />} onClick={() => setConfirmTerminate(true)}>Terminate</Button>
         </div>
       </div>
@@ -93,7 +108,8 @@ function ClusterBlock({ c, toast, reload }) {
       <div style={{ padding: `${spacing[200]}px ${spacing[400]}px`, borderTop: `1px solid ${palette.gray.light2}` }}>
         <MetaRow items={[
           { label: 'Auth', value: 'SCRAM-SHA-256' }, { label: 'TLS', value: 'Enabled' },
-          { label: 'Encryption', value: 'AES-256' }, { label: 'Backup', value: 'Active' },
+          { label: 'Encryption', value: 'AES-256' },
+          { label: 'Backup', value: c.type === 'standalone' ? 'Não suportado (standalone)' : 'Active' },
         ]} />
       </div>
 
@@ -117,21 +133,28 @@ export default function Deployments({ toast, refreshCounts }) {
   const reload = () => API.clusters().then(setClusters).then(() => refreshCounts?.()).catch(() => setLoadError(true))
   useEffect(() => { reload() }, [])
 
-  // Enquanto algum nó estiver em initial sync, a tabela se atualiza sozinha.
-  const sincronizando = Array.isArray(clusters) && clusters.some((c) => c.nodes.some((n) => n.resync_until))
+  // Enquanto algum nó estiver em initial sync ou rolling upgrade, a tabela se atualiza sozinha
+  // (só com a aba visível, sem sobrepor requisições).
+  const sincronizando = Array.isArray(clusters) && clusters.some((c) => c.upgrade || c.nodes.some((n) => n.resync_until))
   useEffect(() => {
     if (!sincronizando) return
-    const id = setInterval(reload, 3000)
+    const id = setInterval(() => { if (document.visibilityState !== 'hidden') reload() }, 3000)
     return () => clearInterval(id)
   }, [sincronizando])
 
   if (loadError) return <div role="alert">Backend indisponível. <Button onClick={() => { setLoadError(false); reload() }}>Tentar novamente</Button></div>
   if (clusters === null) return <Loading />
+  const empty = clusters.length === 0
 
   return (
     <div>
       <PageHeader title="All Clusters" subtitle={`${clusters.length} deployments · Project: Production`}
         actions={[<Button key="n" variant="primary" leftGlyph={<Icon glyph="Plus" />} onClick={() => setNewOpen(true)}>New Deployment</Button>]} />
+      {empty && (
+        <EmptyState title="Nenhum deployment neste projeto">
+          Todos os clusters foram terminados. Crie um em <b>New Deployment</b> ou use <b>Project Settings → Reset Demo</b> para voltar ao estado inicial.
+        </EmptyState>
+      )}
       {clusters.map((c) => <ClusterBlock key={c.id} c={c} toast={toast} reload={reload} />)}
       <NewDeploymentModal open={newOpen} onClose={() => setNewOpen(false)} toast={toast} onCreated={reload} />
     </div>

@@ -31,7 +31,7 @@ export default function PerfAdvisor({ toast, refreshCounts }) {
     { header: 'Suggested Index', render: (r) => <code style={{ color: palette.green.dark1 }}>{r.idx}</code> },
     { header: 'Queries', render: (r) => `${r.queries} queries` },
     { header: 'Est. Improvement', render: (r) => <span style={{ fontSize: 12, color: palette.green.dark1 }}>{r.improvement}</span> },
-    { header: 'Actions', render: (r, i) => <Button size="xsmall" variant="primary" onClick={() => createIdx(i, r)}>Create Index</Button> },
+    { header: 'Actions', render: (r) => <Button size="xsmall" variant="primary" onClick={() => createIdx(r.id, r)}>Create Index</Button> },
   ]
   const slowCols = [
     { header: 'Namespace', render: (r) => <code>{r.ns}</code> },

@@ -56,6 +56,24 @@ a { text-decoration: none; }
   text-transform: uppercase;
 }
 
+/* Rótulo permanente de simulação: texto (não só cor), borda âmbar do token --warning. */
+.ops-sim-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #ffad00;
+  border-radius: 4px;
+  color: #ffd27a;
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .ops-sim-chip { border-color: CanvasText; color: CanvasText; }
+}
+
 .ops-automation-state i {
   width: 7px;
   height: 7px;

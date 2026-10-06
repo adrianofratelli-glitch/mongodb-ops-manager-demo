@@ -37,7 +37,7 @@ export default function Auth({ toast }) {
     { header: 'IP / CIDR', render: (r) => <code>{r.ip}</code> },
     { header: 'Comment', key: 'comment' },
     { header: 'Added', key: 'added' },
-    { header: 'Actions', render: (r, i) => <Button size="xsmall" variant="dangerOutline" onClick={() => delIp(i)}>Remove</Button> },
+    { header: 'Actions', render: (r) => <Button size="xsmall" variant="dangerOutline" onClick={() => delIp(r.ip)}>Remove</Button> },
   ]
 
   return (

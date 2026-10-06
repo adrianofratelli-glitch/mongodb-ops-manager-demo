@@ -17,8 +17,13 @@ export default function Automation({ toast, refreshCounts }) {
   if (!data) return <Loading />
 
   const apply = async (pid, desc) => {
-    try { await API.applyPending(pid); toast('Mudança aplicada', desc, 'success'); reload() }
-    catch (e) { toast('Erro', errMsg(e), 'warning') }
+    try {
+      const r = await API.applyPending(pid)
+      if (r.rolling) toast('Rolling upgrade iniciado', `${desc} — um processo por vez (~${r.seconds}s simulados); acompanhe em Deployments`, 'success')
+      else toast('Mudança aplicada', desc, 'success')
+      reload()
+    }
+    catch (e) { toast('Não aplicada', errMsg(e), 'warning'); reload() }
   }
   const discard = async (pid) => {
     try { await API.discardPending(pid); toast('Mudança descartada', '', 'warning'); reload() }
