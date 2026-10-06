@@ -1,0 +1,165 @@
+{
+  "_doc": "Cenários adversariais compartilhados: rodam contra o FastAPI (test_scenarios_adversarial.py) e contra o mock do GitHub Pages (frontend/tests/mock_parity.mjs). Cada cenário começa de um reset. 'advance' avança o relógio simulado em segundos.",
+  "scenarios": [
+    {
+      "name": "rolling upgrade bloqueia ações conflitantes e conclui sozinho",
+      "steps": [
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "7.0.6"}], "expect": "ok"},
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "7.0.6"}], "expect": {"status": 409, "contains": "já está em andamento"}},
+        {"call": "resyncNode", "args": ["rs-prod-01", 1], "expect": {"status": 409, "contains": "rolling upgrade"}},
+        {"call": "stepDown", "args": ["rs-prod-01", 0], "expect": {"status": 409, "contains": "rolling upgrade"}},
+        {"call": "addNode", "args": ["rs-prod-01", {}], "expect": {"status": 409, "contains": "rolling upgrade"}},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "version", "equals": "7.0.5"},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "upgrade.total", "equals": 3},
+        {"advance": 10},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "version", "equals": "7.0.6"},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "nodes.0.version", "equals": "7.0.6"},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "upgrade", "equals": null},
+        {"get": "automation", "path": "history.0.change", "contains": "7.0.5 → 7.0.6"}
+      ]
+    },
+    {
+      "name": "upgrade recusa mesma versão, downgrade, salto de release series e versão desconhecida",
+      "steps": [
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "7.0.5"}], "expect": {"status": 409, "contains": "já está na versão"}},
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "6.0.1"}], "expect": {"status": 409, "contains": "Downgrade"}},
+        {"call": "upgradeCluster", "args": ["rs-staging", {"target_version": "8.0.0"}], "expect": {"status": 409, "contains": "pula uma release series"}},
+        {"call": "upgradeCluster", "args": ["rs-staging", {"target_version": "9.9.9"}], "expect": {"status": 422, "contains": "fora do catálogo"}},
+        {"call": "upgradeCluster", "args": ["ghost", {"target_version": "7.0.6"}], "expect": {"status": 404}},
+        {"call": "upgradeCluster", "args": ["mongo-dev-01", {"target_version": "7.0.6"}], "expect": "ok"},
+        {"call": "createCluster", "args": [{"name": "old-rs", "type": "Replica Set", "version": "1.2.3", "members": 3}], "expect": {"status": 422, "contains": "fora do catálogo"}}
+      ]
+    },
+    {
+      "name": "resync: só SECONDARY, sem duplicar, bloqueia upgrade e o nó em STARTUP2 não vira PRIMARY",
+      "steps": [
+        {"call": "resyncNode", "args": ["rs-prod-01", 1], "expect": "ok"},
+        {"call": "resyncNode", "args": ["rs-prod-01", 1], "expect": {"status": 409, "contains": "já está em initial sync"}},
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "7.0.6"}], "expect": {"status": 409, "contains": "initial sync"}},
+        {"call": "stepDown", "args": ["rs-prod-01", 0], "expect": "ok"},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "nodes.2.role", "equals": "PRIMARY"},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "nodes.1.role", "equals": "SECONDARY"},
+        {"call": "resyncNode", "args": ["mongo-dev-01", 0], "expect": {"status": 409, "contains": "SECONDARY"}},
+        {"call": "resyncNode", "args": ["sharded-analytics", 0], "expect": {"status": 409, "contains": "SECONDARY"}},
+        {"call": "resyncNode", "args": ["rs-prod-01", 99], "expect": {"status": 404}},
+        {"advance": 26},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "nodes.1.state", "equals": null},
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "7.0.6"}], "expect": "ok"}
+      ]
+    },
+    {
+      "name": "Automation: aplicar upgrade pendente vira rolling upgrade; duplo clique dá 404",
+      "steps": [
+        {"call": "applyPending", "args": ["pc-1"], "expect": "ok"},
+        {"call": "applyPending", "args": ["pc-1"], "expect": {"status": 404}},
+        {"get": "automation", "path": "pending", "length": 1},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "upgrade.target", "equals": "7.0.6"},
+        {"advance": 10},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "version", "equals": "7.0.6"},
+        {"call": "applyPending", "args": ["pc-2"], "expect": "ok"},
+        {"get": "clusters", "find": {"id": "sharded-analytics"}, "path": "config.wiredTigerCacheSizeGB", "equals": 8},
+        {"get": "automation", "path": "pending", "length": 0}
+      ]
+    },
+    {
+      "name": "Automation: mudança de cluster terminado ou conflitante não é aplicada",
+      "steps": [
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "7.0.6"}], "expect": "ok"},
+        {"call": "applyPending", "args": ["pc-1"], "expect": {"status": 409, "contains": "já está em andamento"}},
+        {"get": "automation", "path": "pending", "length": 2},
+        {"call": "deleteCluster", "args": ["sharded-analytics"], "expect": "ok"},
+        {"call": "applyPending", "args": ["pc-2"], "expect": {"status": 409, "contains": "não existe mais"}},
+        {"call": "discardPending", "args": ["pc-2"], "expect": "ok"},
+        {"call": "discardPending", "args": ["pc-2"], "expect": {"status": 404}}
+      ]
+    },
+    {
+      "name": "Backup: standalone não tem snapshot; snapshot manual entra no topo",
+      "steps": [
+        {"call": "takeSnapshot", "args": ["mongo-dev-01"], "expect": {"status": 409, "contains": "replica set"}},
+        {"call": "takeSnapshot", "args": ["ghost"], "expect": {"status": 404}},
+        {"call": "takeSnapshot", "args": ["rs-staging"], "expect": "ok"},
+        {"get": "backup", "path": "snapshots.0.cluster", "equals": "rs-staging"},
+        {"get": "backup", "path": "snapshots.0.id", "equals": "snap-00143"},
+        {"call": "deleteSnapshot", "args": ["snap-00143"], "expect": "ok"},
+        {"call": "deleteSnapshot", "args": ["snap-00143"], "expect": {"status": 404}}
+      ]
+    },
+    {
+      "name": "Restore sem backup é recusado; com snapshot recém-criado funciona",
+      "steps": [
+        {"call": "createCluster", "args": [{"name": "fresh-rs", "type": "Replica Set", "version": "7.0.5", "members": 3}], "expect": "ok"},
+        {"call": "startRestore", "args": [{"cluster": "fresh-rs", "point": "2024-01-15T08:00", "target": "same"}], "expect": {"status": 409, "contains": "nenhum snapshot"}},
+        {"call": "startRestore", "args": [{"cluster": "mongo-dev-01", "point": "2024-01-15T08:00", "target": "same"}], "expect": {"status": 409, "contains": "Standalone"}},
+        {"call": "startRestore", "args": [{"cluster": "ghost", "point": "2024-01-15T08:00", "target": "same"}], "expect": {"status": 404}},
+        {"call": "takeSnapshot", "args": ["fresh-rs"], "expect": "ok"},
+        {"call": "startRestore", "args": [{"cluster": "fresh-rs", "snapshot_id": "snap-00143", "target": "same"}], "expect": "ok"},
+        {"get": "restoreJobs", "path": "0.type", "equals": "Snapshot"},
+        {"get": "restoreJobs", "path": "0.status", "equals": "queued"}
+      ]
+    },
+    {
+      "name": "Restore valida ponto, janela de PIT, topologia e restore concorrente",
+      "steps": [
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "target": "same"}], "expect": {"status": 422, "contains": "Informe o ponto"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "amanhã cedo", "target": "same"}], "expect": {"status": 422, "contains": "inválido"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2023-01-01T00:00", "target": "same"}], "expect": {"status": 422, "contains": "fora da janela"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "snapshot_id": "snap-00136", "target": "same"}], "expect": {"status": 404}},
+        {"call": "startRestore", "args": [{"cluster": "sharded-analytics", "point": "2024-01-15T00:00", "target": "rs-staging"}], "expect": {"status": 409, "contains": "topologia"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T05:00", "target": "ghost"}], "expect": {"status": 404}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T05:00", "target": "rs-staging"}], "expect": "ok"},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T06:00", "target": "same"}], "expect": {"status": 409, "contains": "em andamento"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-staging", "point": "2024-01-15T00:00", "target": "same"}], "expect": {"status": 409, "contains": "em andamento"}},
+        {"get": "restoreJobs", "path": "0.type", "equals": "PIT"},
+        {"advance": 10},
+        {"get": "restoreJobs", "path": "0.status", "equals": "completed"},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T06:00", "target": "same"}], "expect": "ok"}
+      ]
+    },
+    {
+      "name": "Duplo clique: agents, alertas e índices",
+      "steps": [
+        {"call": "upgradeAgents", "args": [], "expect": "ok"},
+        {"call": "upgradeAgents", "args": [], "expect": {"status": 409, "contains": "já estão"}},
+        {"call": "acknowledgeAlert", "args": [1], "expect": "ok"},
+        {"call": "acknowledgeAlert", "args": [1], "expect": {"status": 409, "contains": "já reconhecido"}},
+        {"call": "resolveAlert", "args": [1], "expect": "ok"},
+        {"call": "resolveAlert", "args": [1], "expect": {"status": 404}},
+        {"call": "createIndex", "args": ["ix-2"], "expect": "ok"},
+        {"call": "createIndex", "args": ["ix-2"], "expect": {"status": 404}},
+        {"get": "perfAdvisor", "path": "index_suggestions.0.id", "equals": "ix-1"},
+        {"get": "perfAdvisor", "path": "index_suggestions.1.id", "equals": "ix-3"}
+      ]
+    },
+    {
+      "name": "Duas abas: deletes por chave estável e sem duplicatas",
+      "steps": [
+        {"call": "deleteRole", "args": ["appWriter"], "expect": "ok"},
+        {"call": "deleteRole", "args": ["appWriter"], "expect": {"status": 404}},
+        {"call": "addRole", "args": [{"name": "indexManager"}], "expect": {"status": 409, "contains": "já existe"}},
+        {"get": "roles", "path": "0.name", "equals": "analyticsReadOnly"},
+        {"get": "roles", "path": "1.name", "equals": "indexManager"},
+        {"call": "deleteIp", "args": ["10.0.0.0/16"], "expect": "ok"},
+        {"call": "deleteIp", "args": ["10.0.0.0/16"], "expect": {"status": 404}},
+        {"call": "addIp", "args": [{"ip": "203.0.113.42", "comment": "dup"}], "expect": {"status": 409, "contains": "já está"}},
+        {"call": "addAlertConfig", "args": [{"cond": "Host is down", "target": "All clusters", "thresh": "—"}], "expect": {"status": 409, "contains": "Já existe"}},
+        {"call": "deleteAlertConfig", "args": ["ac-3"], "expect": "ok"},
+        {"call": "deleteAlertConfig", "args": ["ac-3"], "expect": {"status": 404}},
+        {"get": "alerts", "path": "configs", "length": 5},
+        {"call": "addAlertConfig", "args": [{"cond": "Oplog window is below", "target": "rs-prod-01", "thresh": "24h"}], "expect": "ok"},
+        {"get": "alerts", "path": "configs.0.id", "equals": "ac-7"}
+      ]
+    },
+    {
+      "name": "Add Node só em replica set",
+      "steps": [
+        {"call": "addNode", "args": ["sharded-analytics", {}], "expect": {"status": 409, "contains": "replica set"}},
+        {"call": "addNode", "args": ["mongo-dev-01", {}], "expect": {"status": 409, "contains": "replica set"}},
+        {"call": "addNode", "args": ["rs-staging", {}], "expect": "ok"},
+        {"get": "clusters", "find": {"id": "rs-staging"}, "path": "nodes", "length": 3},
+        {"call": "deleteCluster", "args": ["rs-staging"], "expect": "ok"},
+        {"call": "deleteCluster", "args": ["rs-staging"], "expect": {"status": 404}}
+      ]
+    }
+  ]
+}
