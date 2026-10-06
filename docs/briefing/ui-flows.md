@@ -68,7 +68,7 @@ status/duração simulados) ou descartar (`DELETE
 ## Agents (`Agents.jsx`)
 
 Lista `STATE["agents"]` — um por nó provisionado, criado automaticamente
-quando um cluster é criado (`_register_agents` em `backend/main.py:157`) e
+quando um cluster é criado (`_register_agents` em `backend/main.py`) e
 removido quando o cluster é deletado (`_drop_agents`). Botão "Upgrade All"
 (`POST /api/agents/upgrade`) leva todos para `AGENT_LATEST` (`12.0.28`).
 Modal de logs (`AgentLogsModal.jsx`, `GET /api/agents/{host}/logs`) mostra
@@ -108,21 +108,26 @@ não cria índice real nenhum.
 Painel de operações em andamento (`GET /api/realtime/{id}`, polling 1x/s
 com as mesmas regras de visibilidade/anti-sobreposição de Metrics).
 Operações fictícias avançam, terminam sozinhas e são substituídas por
-novas (lógica em `backend/main.py:564-593`). Botão "Kill" por operação
+novas (lógica em `backend/main.py`). Botão "Kill" por operação
 chama `POST /api/realtime/{id}/kill/{opid}` — a operação some de verdade da
 lista em memória (`_RT_OPS`), não é só efeito visual.
 
 ## Backup / Restore (`Backup.jsx`, `Restore.jsx`)
 
-Backup: lista de snapshots, botão "Take Snapshot" (`POST
-/api/backup/snapshot`), delete com confirmação.
+Backup: banner "Simulação" no topo; lista de snapshots; botão "Take Snapshot ·
+<cluster>" (`POST /api/backup/snapshot`) que usa o cluster do filtro e trava
+durante a chamada (duplo clique não cria dois); standalone é recusado com o
+motivo (sem oplog). "Storage Used" é a soma dos snapshots listados e "PIT
+window" vem do estado — nada de número fixo. O botão Restore da linha cria um
+job do tipo `Snapshot` com `snapshot_id`.
 
 Restore: cria job de point-in-time restore (`POST /api/restore`) que evolui
-sozinho `queued → running → completed` ao longo de ~9s
-(`RESTORE_RUNNING_SECONDS=3`, `RESTORE_TOTAL_SECONDS=9` em
-`backend/main.py:680-681`), sem intervenção do usuário — mesmo padrão do
-resync de nó. Formulário tem campos reais (cluster, ponto no tempo, alvo),
-não são placeholders estáticos.
+sozinho `queued → running → completed` em ~9 s simulados
+(`RESTORE_RUNNING_SECONDS=3`, `RESTORE_TOTAL_SECONDS=9`). A janela de PIT
+mostrada, o ponto padrão e os limites do campo vêm de `pit_windows` do
+`GET /api/backup`; cluster sem snapshot (ou standalone) mostra aviso e
+desabilita o botão. Restore simultâneo na mesma origem/destino volta 409 com o
+job em andamento.
 
 ## Alerts (`Alerts.jsx`)
 
@@ -152,14 +157,19 @@ demo (`_log_activity`, chamado por praticamente todo endpoint de escrita em
 
 ## Settings (`Settings.jsx`)
 
-Botão único relevante: "Reset Demo" (`POST /api/reset`), recompõe o `_SEED`
-inteiro e limpa os stores auxiliares em memória (`_WALKS`, `_RT_OPS`).
+Botão único com efeito: "Reset Demo" (`POST /api/reset`), recompõe o seed
+inteiro e limpa os stores auxiliares (`_WALKS`, `_RT_OPS`, último scan do
+Performance Advisor). Os demais campos estão desabilitados e rotulados como
+ilustrativos (antes havia um "Save Changes" que dizia salvar sem salvar nada).
 
 ## Roteiro recomendado de demo (ordem sugerida ao apresentar)
 
 1. Dashboard — saúde da frota e alerta mais severo em aberto.
 2. Deployments — criar um replica set, ver contadores e agents surgirem.
-3. Automation — aplicar uma mudança pendente.
+3. Automation — aplicar o upgrade pendente de `rs-prod-01`: vira rolling upgrade
+   (badge "Rolling upgrade → 7.0.6: n/3 processos (simulado)" em All Clusters);
+   ao terminar entra no Automation History. Upgrade, resync, step down e add
+   node ficam bloqueados enquanto ele roda.
 4. Metrics — deixar os gráficos correndo enquanto se fala de baseline.
 5. Deployments de novo — Resync em um secundário, voltar para Metrics:
    CPU/lag/IOPS daquele nó sobem e ele volta a `green` sozinho em 25s. É o
@@ -169,7 +179,8 @@ inteiro e limpa os stores auxiliares em memória (`_WALKS`, `_RT_OPS`).
 7. Alerts — reconhecer o alerta crítico, mostrar o banner do Dashboard
    trocando para o próximo alerta.
 8. Performance Advisor — materializar uma recomendação de índice.
-9. Backup/Restore — explicar snapshot e point-in-time restore.
+9. Backup/Restore — snapshot manual; restore point-in-time dentro da janela
+   mostrada; tentar restaurar o standalone para mostrar a recusa (sem oplog).
 10. Security — autenticação, RBAC e auditabilidade; Audit Log exporta CSV
     real.
 11. Settings — resetar a demo para reiniciar o roteiro do zero.
