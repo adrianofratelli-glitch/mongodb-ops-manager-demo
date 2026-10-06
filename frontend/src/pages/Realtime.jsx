@@ -3,7 +3,7 @@ import Card from '@leafygreen-ui/card'
 import Badge from '@leafygreen-ui/badge'
 import Button from '@leafygreen-ui/button'
 import { Select, Option } from '@leafygreen-ui/select'
-import { Subtitle, Body } from '@leafygreen-ui/typography'
+import { Subtitle, Body, Description } from '@leafygreen-ui/typography'
 import { spacing } from '@leafygreen-ui/tokens'
 import { palette } from '@leafygreen-ui/palette'
 import { useDarkMode } from '@leafygreen-ui/leafygreen-provider'
@@ -25,23 +25,27 @@ export default function Realtime({ toast }) {
   const [rt, setRt] = useState(null)
   const [paused, setPaused] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [offline, setOffline] = useState(false)
+  const loadClusters = () => API.clusters()
+    .then((cs) => { setOffline(false); setClusters(cs); setCid((cur) => (cs.some((c) => c.id === cur) ? cur : cs[0]?.id)); setLoaded(true) })
+    .catch(() => { setOffline(true); setLoaded(true) })
   const inFlight = useRef(false)
+  const hasData = useRef(false)
 
-  useEffect(() => {
-    API.clusters().then((cs) => { setClusters(cs); setCid(cs[0]?.id); setLoaded(true) }).catch(() => setLoaded(true))
-  }, [])
+  useEffect(() => { loadClusters() }, [])
 
   useEffect(() => {
     if (!cid) return
     setRt(null)
+    hasData.current = false
     let vivo = true
     const tick = () => {
       // aba oculta ou request anterior em voo: pula a rodada
       if (inFlight.current || document.visibilityState === 'hidden') return
       inFlight.current = true
       API.realtime(cid)
-        .then((d) => { if (vivo) setRt(d) })
-        .catch(() => setPaused(true)) // cluster removido: para de martelar
+        .then((d) => { if (vivo) { hasData.current = true; setRt(d) } })
+        .catch(() => { setPaused(true); if (vivo && !hasData.current) setOffline(true) }) // cluster removido ou backend fora: para de martelar
         .finally(() => { inFlight.current = false })
     }
     tick()
@@ -55,6 +59,22 @@ export default function Realtime({ toast }) {
       toast('Operação encerrada', `db.killOp(${opid}) executado.`, 'warning')
       setRt((cur) => (cur ? { ...cur, in_progress: cur.in_progress.filter((o) => o.opid !== opid) } : cur))
     } catch (e) { toast('Erro', errMsg(e), 'warning') }
+  }
+
+
+  if (offline) {
+    return (
+      <div role="alert">
+        <PageHeader title="Real-Time" subtitle="Backend indisponível" />
+        <Card>
+          <Subtitle style={{ fontSize: 14 }}>Não foi possível falar com a API local da demo</Subtitle>
+          <Description style={{ marginTop: spacing[200] }}>
+            Verifique se o backend está rodando em 127.0.0.1:8077 (<code>./start.sh</code>). Se o processo foi reiniciado, o estado volta ao inicial.
+          </Description>
+          <Button style={{ marginTop: spacing[300] }} onClick={() => { setOffline(false); setPaused(false); loadClusters() }}>Tentar novamente</Button>
+        </Card>
+      </div>
+    )
   }
 
   if (loaded && clusters.length === 0) {

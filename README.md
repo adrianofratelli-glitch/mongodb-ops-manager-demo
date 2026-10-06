@@ -32,19 +32,27 @@ documentation remain in Brazilian Portuguese.
 
 **Live demo:** https://adrianofratelli-glitch.github.io/mongodb-ops-manager-demo/
 
-**Full local stack with the Python backend:**
+**Full local stack with the Python backend** (Python 3.11+ and Node 20+):
 
 ```bash
-./start.sh           # optimized portfolio build
+python3 -m venv backend/.venv
+backend/.venv/bin/pip install -r backend/requirements.txt
+(cd frontend && npm ci)
+
+./start.sh           # optimized build, opens http://127.0.0.1:5377
 POV_DEV=1 ./start.sh # development mode with HMR
+POV_NO_OPEN=1 ./start.sh # do not open the browser
 ```
 
 The launcher starts the backend on `127.0.0.1:8077` and the frontend on
-`127.0.0.1:5377`. It preserves any process already using either port.
+`127.0.0.1:5377`. If either port is already in use it stops with an error and
+leaves the existing process alone. It never installs dependencies, so run the
+setup above once before a presentation.
 
-> Local prerequisites: `backend/.venv` with `requirements.txt` installed and
-> `frontend/node_modules` available. The launcher does not modify dependencies
-> during a presentation.
+**Reset:** there is no database. All state lives in memory and comes from
+`frontend/src/api/seed.json` (shared by the backend and the GitHub Pages mock).
+*Project Settings → Reset Demo* (`POST /api/reset`) or restarting the backend
+returns everything to that seed, including in-flight upgrades and restores.
 
 **Publish a new live-demo version:**
 
@@ -56,23 +64,53 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for architecture, endpoints, and manual
 execution.
 
 > **Two modes:** GitHub Pages uses a zero-cost mock with data embedded in the
-> frontend. When run locally through `opsmgr`, the frontend uses the real
+> frontend. When run locally with `./start.sh`, the frontend uses the real
 > FastAPI backend, which is better suited to technical architecture demos.
+> Both modes read the same seed and are held to the same rule scenarios.
 
 ---
 
-## Resilience tests
+## Tests
 
 ```bash
 backend/.venv/bin/pip install -r backend/requirements-dev.txt
-backend/.venv/bin/pytest -q backend/tests
+backend/.venv/bin/pytest -q backend/tests      # FastAPI: rules, reset, hostile input, concurrency
+(cd frontend && npm run test:parity)            # same scenarios against the GitHub Pages mock
+
+# UI end-to-end without opening a port (Playwright serves the build itself)
+(cd frontend && npx vite build --outDir /tmp/opsm-dist-real && node tests/e2e_ui.mjs bridge /tmp/opsm-dist-real)
+(cd frontend && VITE_USE_MOCK=1 npx vite build --outDir /tmp/opsm-dist-mock && node tests/e2e_ui.mjs mock /tmp/opsm-dist-mock)
 ```
 
-The suite submits malformed configuration, invalid IP/CIDR values, hostile
-version and port inputs, excessive node counts, and 32 concurrent attempts to
-create the same cluster. The contract is to reject invalid or conflicting
-requests with `422`/`409` and keep exactly one state entry. Cluster creation,
-node addition, and reset are serialized; each cluster is limited to 12 nodes.
+`backend/tests/scenarios_adversarial.json` describes out-of-order actions
+(restore without a backup, upgrade during an upgrade, resync of a standalone),
+double clicks, and two-tab conflicts; it runs against both the FastAPI backend
+and the mock. The backend suite also covers malformed and 1 MB bodies,
+operator-injection payloads (`{"$gt": ""}`), unicode/zero-width/RTL names,
+32 parallel requests on the same resource, and a test proving that state after
+many actions plus `POST /api/reset` equals the initial state. The `bridge` E2E
+drives the real UI build against the real FastAPI app in process (two full demo
+runs from reset, 360/768/1440 px layouts, `prefers-reduced-motion`).
+
+## What is simulated, and which rules are real
+
+Every number and every action is simulated in memory; the top bar says so on
+every screen. The *refusals*, however, follow documented Ops Manager / MongoDB
+behavior, so the demo never shows something the product would not do:
+
+- **Upgrades** are rolling (config servers, secondaries, primary, mongos, one
+  process at a time), go one release series at a time, and block resync, step
+  down, add node and a second upgrade while they run.
+- **Backup** covers replica sets and sharded clusters only: a standalone has no
+  oplog, so there is no continuous backup or point-in-time restore.
+- **Restore** requires a snapshot, a point inside the cluster's PIT window, a
+  target with the same topology, and no other restore running on the same
+  source or target.
+- **Resync** applies to `SECONDARY` members only, and a member in `STARTUP2` is
+  never elected primary.
+
+Durations (3 s per upgraded process, 9 s restore, 25 s initial sync) are demo
+timings, not product measurements.
 
 ---
 

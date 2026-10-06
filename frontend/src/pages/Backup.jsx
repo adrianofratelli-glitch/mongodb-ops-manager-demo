@@ -3,6 +3,7 @@ import Card from '@leafygreen-ui/card'
 import Badge from '@leafygreen-ui/badge'
 import Button from '@leafygreen-ui/button'
 import Icon from '@leafygreen-ui/icon'
+import Banner from '@leafygreen-ui/banner'
 import { Select, Option } from '@leafygreen-ui/select'
 import { Subtitle } from '@leafygreen-ui/typography'
 import ConfirmationModal from '@leafygreen-ui/confirmation-modal'
@@ -15,14 +16,18 @@ export default function Backup({ toast, refreshCounts }) {
   const [data, setData] = useState(null)
   const [filter, setFilter] = useState('all')
   const [toDelete, setToDelete] = useState(null)
+  const [busy, setBusy] = useState(false)
   const reload = () => API.backup().then(setData).then(() => refreshCounts?.()).catch(() => setLoadError(true))
   useEffect(() => { reload() }, [])
   if (loadError) return <div role="alert">Backend indisponível. <Button onClick={() => { setLoadError(false); reload() }}>Tentar novamente</Button></div>
   if (!data) return <Loading />
 
   const snap = async (cluster) => {
-    try { await API.takeSnapshot(cluster); toast('Snapshot criado!', `${cluster}`, 'success'); reload() }
+    if (busy) return
+    setBusy(true)
+    try { const s = await API.takeSnapshot(cluster); toast('Snapshot criado', `${s.id} · ${cluster}`, 'success'); reload() }
     catch (e) { toast('Erro', errMsg(e), 'warning') }
+    finally { setBusy(false) }
   }
   const del = async (sid) => {
     try { await API.deleteSnapshot(sid); toast('Snapshot deletado', sid, 'warning'); reload() }
@@ -30,13 +35,17 @@ export default function Backup({ toast, refreshCounts }) {
   }
   const restore = async (r) => {
     try {
-      await API.startRestore({ cluster: r.cluster, point: r.created, target: 'same' })
-      toast('Restore iniciado', `Point-in-time recovery de ${r.cluster} a partir de ${r.id} — acompanhe em Restore`, 'success')
+      await API.startRestore({ cluster: r.cluster, snapshot_id: r.id, target: 'same' })
+      toast('Restore iniciado', `Restore de ${r.cluster} a partir do snapshot ${r.id} — acompanhe em Restore`, 'success')
     } catch (e) { toast('Erro', errMsg(e), 'warning') }
   }
 
   const filtered = filter === 'all' ? data.snapshots : data.snapshots.filter((s) => s.cluster === filter)
   const clusters = [...new Set(data.snapshots.map((s) => s.cluster))]
+  // Snapshot manual vai para o cluster filtrado; sem filtro, para o primeiro com backup ativo.
+  const snapTarget = filter !== 'all' ? filter : (clusters[0] || 'rs-prod-01')
+  const windows = data.pit_windows || {}
+  const oldest = Object.values(windows).map((w) => w.from).sort()[0]
 
   const cols = [
     { header: 'Snapshot ID', render: (r) => <code>{r.id}</code> },
@@ -57,12 +66,15 @@ export default function Backup({ toast, refreshCounts }) {
   return (
     <div>
       <PageHeader title="Backup" subtitle="Continuous backup · Point-in-Time Recovery"
-        actions={[<Button key="s" variant="primary" leftGlyph={<Icon glyph="Save" />} onClick={() => snap(clusters[0] || 'rs-prod-01')}>Take Snapshot Now</Button>]} />
+        actions={[<Button key="s" variant="primary" leftGlyph={<Icon glyph="Save" />} disabled={busy} onClick={() => snap(snapTarget)}>{busy ? 'Criando snapshot…' : `Take Snapshot · ${snapTarget}`}</Button>]} />
+      <Banner variant="info" style={{ marginBottom: spacing[400] }}>
+        Simulação: snapshots, tamanhos e janelas são dados fictícios em memória. Backup contínuo depende do oplog, por isso vale para replica set e sharded cluster; standalone fica fora.
+      </Banner>
       <Grid cols={4} style={{ marginBottom: spacing[600] }}>
         <StatCard label="Protected Clusters" value={data.protected} sub={<Badge variant="green">All active</Badge>} />
         <StatCard label="Total Snapshots" value={data.total_snapshots} sub="across all clusters" />
-        <StatCard label="Storage Used" value="1.8 TB" sub={<Badge variant="green">Within quota</Badge>} />
-        <StatCard label="Oplog Coverage" value="48h" sub={<Badge variant="green">PIT ready</Badge>} />
+        <StatCard label="Storage Used" value={`${data.storage_gb ?? '—'} GB`} sub="soma dos snapshots listados (simulado)" />
+        <StatCard label="PIT window" value={`${Object.keys(windows).length} cluster(s)`} sub={oldest ? `desde ${oldest} UTC` : 'sem snapshot'} />
       </Grid>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5`, display: 'flex', alignItems: 'center' }}>

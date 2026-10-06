@@ -40,7 +40,7 @@ IA, prompt ou modelo de linguagem envolvida. Por isso não existe
 | Gráficos | `@lg-charts/core` | `frontend/src/components/LineChart.jsx` |
 | HTTP client | axios | `frontend/src/api/client.js` |
 | Backend | Python FastAPI, estado em memória | `backend/main.py` |
-| Estado inicial ("seed") | dicionário Python puro | `backend/data.py` |
+| Estado inicial ("seed") | JSON único lido pelos dois modos | `frontend/src/api/seed.json` (carregado por `backend/data.py` e importado por `mock.js`) |
 | Modo estático (GitHub Pages) | mesma API reimplementada 100% no cliente | `frontend/src/api/mock.js` |
 
 Duas portas fixas, sempre bind em `127.0.0.1` (nunca `0.0.0.0`):
@@ -74,7 +74,10 @@ FastAPI (:8077)  — backend/main.py
 
 Não existe camada de persistência (sem SQLite, sem arquivo, sem MongoDB).
 Reiniciar o processo do backend, ou chamar `POST /api/reset`, volta tudo para
-o `_SEED` definido em `backend/data.py`.
+o seed de `frontend/src/api/seed.json`. O reset também zera as séries de
+métricas (`_WALKS`), as operações vivas (`_RT_OPS`) e o último scan do
+Performance Advisor; `test_reset_restores_exact_initial_state_after_many_actions`
+prova que estado após 17 ações + reset é igual ao estado inicial.
 
 `frontend/src/api/client.js` decide em runtime se fala com o backend real
 (`RealAPI`, via axios) ou com o mock local (`MockAPI`, em
@@ -102,16 +105,17 @@ separados, reaproveitados pelo navegador entre deploys.
   documentado como limite conhecido.
 - **FastAPI + mock.js duplicados, não um só backend** — o requisito de rodar
   em GitHub Pages (hosting estático, sem servidor) força uma segunda
-  implementação client-side da mesma lógica. Isso é uma fonte deliberada de
-  duplicação; por regra do projeto, toda mudança de comportamento no
-  backend precisa ser replicada no mock.
+  implementação client-side da mesma lógica. Para conter a duplicação, o
+  seed é um arquivo só (`seed.json`) e as regras são presas pelos mesmos
+  cenários (`backend/tests/scenarios_adversarial.json`), executados contra o
+  FastAPI (`pytest`) e contra o mock (`npm run test:parity`).
 - **`RLock` global (`STATE_LOCK`) em toda rota de escrita** — sem ele,
   requisições concorrentes (ex.: dois cliques rápidos em "New Deployment"
   com o mesmo nome) corrompiam o estado em memória compartilhado entre
   requisições do Uvicorn. Com o lock, a segunda requisição recebe `409`
   de forma determinística em vez de gerar duplicata.
 - **Métricas como random walk com reversão à média, não valores aleatórios
-  soltos** (`backend/main.py`, função `_walk`, linha ~435) — o gráfico
+  soltos** (`backend/main.py`, função `_walk`) — o gráfico
   precisa "andar" de forma contínua e plausível a cada segundo, e reagir
   a ações da demo (step down, resync, nó com disco cheio). Um sorteio
   independente por chamada deixaria o gráfico com serrilhado sem sentido
@@ -123,6 +127,27 @@ separados, reaproveitados pelo navegador entre deploys.
   compartilhado entre todas as PoVs do portfólio (`pov-signature.css`
   idêntico byte a byte entre PoVs), para consistência de marca na
   apresentação ao cliente.
+
+## Regras de simulação (o que a demo recusa, como o produto real)
+
+Todas as respostas são simuladas, mas as recusas seguem o comportamento
+documentado do Ops Manager / MongoDB, para a demo nunca mostrar algo que o
+produto real não faria. Cada linha tem cenário em
+`backend/tests/scenarios_adversarial.json`.
+
+| Ação | Regra na demo | Base no produto real |
+|---|---|---|
+| Upgrade (`POST /api/clusters/{id}/upgrade`, Automation "Apply") | Rolling: um processo por vez, config servers → secundários → primário → mongos; 3 s simulados por processo; recusa mesma versão, downgrade, salto de release series (6.0 → 8.0) e versão fora de 4.4–8.0; recusa novo upgrade durante upgrade | Upgrade de MongoDB é sequencial por release series e rolling no Ops Manager |
+| Resync | Só membro `SECONDARY`; recusa standalone, mongos, config server e resync duplicado; bloqueado durante upgrade | Initial sync é de membro de replica set |
+| Step down | Nó em `STARTUP2` (resync) não é eleito; bloqueado durante upgrade | Membro em initial sync não é elegível |
+| Add Node | Só replica set; bloqueado durante upgrade | Sharded cresce por shard; standalone precisa virar replica set |
+| Snapshot | Recusa standalone | Backup contínuo depende do oplog; standalone não tem oplog |
+| Restore | Recusa cluster sem snapshot, standalone, ponto fora da janela PIT (do snapshot mais antigo ao mais recente), destino de topologia diferente e restore simultâneo na mesma origem/destino; restore a partir de snapshot vira job `Snapshot`, não `PIT` | Restore só existe dentro da janela coberta pelo backup |
+| Automation | Mudança pendente de cluster terminado é recusada (descartar); upgrade pendente vira rolling upgrade real da simulação; config change grava `config` no cluster | — |
+| Deletes (roles, IP, alert config, sugestão de índice) | Por chave estável (nome, rede, `id`), não por posição — duas abas não apagam o item errado; duplicatas recusadas com 409 | — |
+
+Durações (`3 s` por processo, `9 s` de restore, `25 s` de resync) são da
+simulação, não medidas do produto.
 
 ## Limites conhecidos
 

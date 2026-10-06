@@ -2,21 +2,27 @@
 MongoDB Ops Manager — Demo Backend (FastAPI)
 Estado em memória, sem banco real. Serve os dados para o frontend React/LeafyGreen.
 Rode com:  uvicorn main:app --reload --host 127.0.0.1 --port 8077
+
+Tudo aqui é SIMULADO: nenhuma rota fala com um Ops Manager real. As regras de
+negócio (rolling upgrade, backup só de replica set/sharded, janela de PIT,
+eleição só com secundário elegível) seguem o comportamento documentado do
+Ops Manager para que a demo não mostre algo que o produto real recusaria.
 """
 import random
 import re
 import time
+from datetime import datetime, timedelta, timezone
 from ipaddress import ip_network
 from threading import RLock
-from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException
+from typing import Literal, Optional
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal, Optional
 
 import data
 
-app = FastAPI(title="MongoDB Ops Manager — Demo API", version="1.0.0")
+app = FastAPI(title="MongoDB Ops Manager — Demo API", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +36,15 @@ app.add_middleware(
 STATE = data.seed()
 STATE_LOCK = RLock()
 AGENT_LATEST = "12.0.28"
+ADMIN = "admin@mongodb-brazil.com"
+
+# Release series que a demo conhece. O Ops Manager só faz upgrade de uma
+# release series por vez (6.0 → 7.0 → 8.0), nunca pulando uma.
+RELEASE_SERIES = ["4.4", "5.0", "6.0", "7.0", "8.0"]
+VERSION_PATTERN = r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$"
+UPGRADE_SECONDS_PER_NODE = 3
+RESYNC_SECONDS = 25
+TS_FORMATS = ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S")
 
 
 @app.get("/health/live")
@@ -41,11 +56,45 @@ def find_cluster(cid: str):
     return next((c for c in STATE["clusters"] if c["id"] == cid), None)
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _now_str() -> str:
+    return _utcnow().strftime("%Y-%m-%d %H:%M")
+
+
+def _parse_ts(value: str) -> Optional[datetime]:
+    for fmt in TS_FORMATS:
+        try:
+            return datetime.strptime(value, fmt)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _vtuple(version: str) -> tuple:
+    return tuple(int(x) for x in version.split("-")[0].split("."))
+
+
+def _series(version: str) -> str:
+    major, minor, *_ = _vtuple(version)
+    return f"{major}.{minor}"
+
+
+def _check_known_version(version: str):
+    if _series(version) not in RELEASE_SERIES:
+        raise HTTPException(
+            422,
+            f"Versão {version} fora do catálogo da demo (release series {', '.join(RELEASE_SERIES)}).",
+        )
+
+
 # ── Modelos de request ───────────────────────────────────────
 class NewCluster(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     type: Literal["Replica Set", "Sharded Cluster", "Standalone"]
-    version: str = Field(default="7.0.5", pattern=r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$")
+    version: str = Field(default="7.0.5", max_length=32, pattern=VERSION_PATTERN)
     members: int = Field(default=3, ge=1, le=12)
     port: int = Field(default=27017, ge=1, le=65535)
 
@@ -68,14 +117,14 @@ class NewNode(BaseModel):
 
 
 class EditCluster(BaseModel):
-    version: Optional[str] = Field(default=None, max_length=32, pattern=r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$")
+    version: Optional[str] = Field(default=None, max_length=32, pattern=VERSION_PATTERN)
     oplog: Optional[str] = Field(default=None, max_length=32)
     cache: Optional[str] = Field(default=None, max_length=32)
     log_level: Optional[str] = Field(default=None, max_length=16)
 
 
 class UpgradeReq(BaseModel):
-    target_version: str = Field(max_length=32, pattern=r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$")
+    target_version: str = Field(max_length=32, pattern=VERSION_PATTERN)
 
 
 class NewUser(BaseModel):
@@ -99,8 +148,9 @@ class NewAlertConfig(BaseModel):
 
 class NewRestore(BaseModel):
     cluster: str = Field(min_length=1, max_length=64)
-    point: str = Field(min_length=1, max_length=32)
-    target: str = Field(default="same", max_length=64)
+    point: Optional[str] = Field(default=None, min_length=1, max_length=32)
+    target: str = Field(default="same", min_length=1, max_length=64)
+    snapshot_id: Optional[str] = Field(default=None, pattern=r"^snap-\d{1,8}$")
 
 
 class NewIP(BaseModel):
@@ -122,21 +172,18 @@ class NewIP(BaseModel):
 # ════════════════════════════════════════════════════════════
 @app.get("/api/meta")
 def get_meta():
-    return {"org": STATE["org"], "project": STATE["project"]}
+    return {"org": STATE["org"], "project": STATE["project"], "simulated": True}
 
 
 @app.get("/api/dashboard")
 def get_dashboard():
+    _advance_all()
     clusters = STATE["clusters"]
-    total = len(clusters)
-    healthy = sum(1 for c in clusters if c["status"] == "healthy")
-    warn = sum(1 for c in clusters if c["status"] in ("warning", "critical"))
-    hosts = sum(len(c["nodes"]) for c in clusters)
     return {
-        "total_clusters": total,
-        "healthy": healthy,
-        "warning": warn,
-        "hosts": hosts,
+        "total_clusters": len(clusters),
+        "healthy": sum(1 for c in clusters if c["status"] == "healthy"),
+        "warning": sum(1 for c in clusters if c["status"] in ("warning", "critical")),
+        "hosts": sum(len(c["nodes"]) for c in clusters),
         "open_alerts": len(STATE["alerts_open"]),
         "top_alert": _top_alert(),
         "snapshots": len(STATE["snapshots"]) + STATE["snapshot_base"],
@@ -145,11 +192,7 @@ def get_dashboard():
     }
 
 
-
 # ── Coerência entre cluster, agents e alertas ────────────────
-RESYNC_SECONDS = 25
-
-
 def _agent_type(role):
     return "Automation + Monitoring" if role in ("mongos", "Config Server", "Standalone") else "Automation + Monitoring + Backup"
 
@@ -198,6 +241,92 @@ def _expire_resyncs():
                     n["lag"] = "0.0s" if n["role"] == "SECONDARY" else "—"
 
 
+# Ordem do rolling upgrade no Ops Manager: config servers, depois secundários,
+# depois primários (após step down), e os mongos por último. Um processo por vez.
+_UPGRADE_ORDER = {"Config Server": 0, "SECONDARY": 1, "Shard PRIMARY": 2, "PRIMARY": 2, "Standalone": 2, "mongos": 3}
+
+
+def _check_upgrade(c, target):
+    if c.get("upgrade"):
+        raise HTTPException(409, f'Rolling upgrade para {c["upgrade"]["target"]} já está em andamento em {c["name"]}; aguarde concluir.')
+    if any(n.get("resync_until") for n in c["nodes"]):
+        raise HTTPException(409, f"{c['name']} tem um nó em initial sync; aguarde terminar antes do upgrade.")
+    _check_known_version(target)
+    current, wanted = _vtuple(c["version"]), _vtuple(target)
+    if wanted == current:
+        raise HTTPException(409, f"{c['name']} já está na versão {target}.")
+    if wanted < current:
+        raise HTTPException(409, "Downgrade não é suportado nesta demo (no Ops Manager exige featureCompatibilityVersion compatível).")
+    s_cur, s_new = _series(c["version"]), _series(target)
+    if s_cur in RELEASE_SERIES and RELEASE_SERIES.index(s_new) - RELEASE_SERIES.index(s_cur) > 1:
+        nxt = RELEASE_SERIES[RELEASE_SERIES.index(s_cur) + 1]
+        raise HTTPException(409, f"Upgrade de {s_cur} para {s_new} pula uma release series: passe por {nxt} antes.")
+
+
+def _start_upgrade(c, target, by, source):
+    """Inicia um rolling upgrade simulado: um processo por vez, sem downtime no RS."""
+    _check_upgrade(c, target)
+    order = sorted(range(len(c["nodes"])), key=lambda i: _UPGRADE_ORDER.get(c["nodes"][i]["role"], 2))
+    c["upgrade"] = {
+        "from": c["version"], "target": target, "order": order, "done": 0, "total": len(order),
+        "seconds_per_node": UPGRADE_SECONDS_PER_NODE, "by": by, "source": source,
+        "_started_at": time.time(),
+    }
+    c["nodes"][order[0]]["state"] = "UPGRADING"
+    _log_activity(by, "UPGRADE", c["name"], f"Rolling upgrade {c['version']} → {target} iniciado ({len(order)} processo(s), um por vez)")
+    return c["upgrade"]["total"] * UPGRADE_SECONDS_PER_NODE
+
+
+def _advance_upgrades():
+    now = time.time()
+    with STATE_LOCK:
+        for c in STATE["clusters"]:
+            u = c.get("upgrade")
+            if not u:
+                continue
+            done = min(u["total"], int((now - u["_started_at"]) // u["seconds_per_node"]))
+            for k in range(u["done"], done):
+                node = c["nodes"][u["order"][k]]
+                node["version"] = u["target"]
+                node["state"] = None
+            u["done"] = done
+            if done < u["total"]:
+                c["nodes"][u["order"][done]]["state"] = "UPGRADING"
+                continue
+            c["version"] = u["target"]
+            c.pop("upgrade")
+            secs = u["total"] * u["seconds_per_node"]
+            STATE["automation_history"].insert(0, {
+                "time": _now_str(), "cluster": c["name"], "change": f"Version upgrade {u['from']} → {u['target']} (rolling)",
+                "status": "success", "duration": f"{secs}s (simulado)", "by": u["by"],
+            })
+            _log_activity("System", "UPGRADE", c["name"], f"Rolling upgrade concluído: {u['from']} → {u['target']}")
+
+
+def _update_restore_jobs():
+    now = time.time()
+    with STATE_LOCK:
+        for j in STATE["restore_jobs"]:
+            running_at = j.get("_running_at")
+            done_at = j.get("_done_at")
+            if j["status"] == "queued" and running_at and now >= running_at:
+                j["status"] = "running"
+            if j["status"] in ("queued", "running") and done_at and now >= done_at:
+                j["status"] = "completed"
+
+
+def _advance_all():
+    _expire_resyncs()
+    _advance_upgrades()
+    _update_restore_jobs()
+
+
+def _busy_reason(c):
+    if c.get("upgrade"):
+        return f"rolling upgrade para {c['upgrade']['target']} em andamento"
+    return None
+
+
 def _top_alert():
     """O alerta que o banner deve mostrar: o mais severo ainda não reconhecido."""
     ordem = {"crit": 0, "warn": 1, "info": 2}
@@ -213,7 +342,7 @@ def _top_alert():
 # ════════════════════════════════════════════════════════════
 @app.get("/api/clusters")
 def list_clusters():
-    _expire_resyncs()
+    _advance_all()
     return STATE["clusters"]
 
 
@@ -224,6 +353,7 @@ def create_cluster(req: NewCluster):
         raise HTTPException(422, "Nome do cluster é obrigatório.")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", name):
         raise HTTPException(422, "Nome inválido: use letras, números, ponto, hífen ou underscore (até 64).")
+    _check_known_version(req.version)
     req.name = name
     with STATE_LOCK:
         if find_cluster(req.name):
@@ -241,7 +371,7 @@ def create_cluster(req: NewCluster):
         cluster = {"id": req.name, "type": type_key, "name": req.name, "version": req.version, "status": "healthy", "nodes": nodes}
         STATE["clusters"].append(cluster)
         _register_agents(cluster)
-        _log_activity("admin@mongodb-brazil.com", "CREATE", req.name, f"Provisioned {req.type} with {members} node(s)")
+        _log_activity(ADMIN, "CREATE", req.name, f"Provisioned {req.type} with {members} node(s)")
     return cluster
 
 
@@ -254,7 +384,7 @@ def delete_cluster(cid: str):
         STATE["clusters"].remove(c)
         _drop_agents(c)
         closed = _close_alerts_for(c["name"])
-        _log_activity("admin@mongodb-brazil.com", "TERMINATE", cid, "Cluster terminated")
+        _log_activity(ADMIN, "TERMINATE", cid, "Cluster terminated")
         if closed:
             _log_activity("System", "ALERT CLOSE", cid, f"{closed} alerta(s) fechado(s) junto com o cluster")
     return {"ok": True, "agents_removed": True, "alerts_closed": closed}
@@ -262,24 +392,31 @@ def delete_cluster(cid: str):
 
 @app.put("/api/clusters/{cid}")
 def edit_cluster(cid: str, req: EditCluster):
+    _advance_all()
     with STATE_LOCK:
         c = find_cluster(cid)
         if not c:
             raise HTTPException(404, "Cluster não encontrado")
         if req.version:
-            c["version"] = req.version
-            for n in c["nodes"]:
-                n["version"] = req.version
-        _log_activity("admin@mongodb-brazil.com", "EDIT", cid, "Config applied via Automation")
+            _start_upgrade(c, req.version, ADMIN, "edit")
+        changes = {k: v for k, v in {"oplog": req.oplog, "cache": req.cache, "log_level": req.log_level}.items() if v}
+        if changes:
+            c.setdefault("config", {}).update(changes)
+            _log_activity(ADMIN, "EDIT", cid, "Config applied via Automation: " + ", ".join(f"{k}={v}" for k, v in changes.items()))
     return c
 
 
 @app.post("/api/clusters/{cid}/nodes")
 def add_node(cid: str, req: NewNode):
+    _advance_all()
     with STATE_LOCK:
         c = find_cluster(cid)
         if not c:
             raise HTTPException(404, "Cluster não encontrado")
+        if c["type"] != "rs":
+            raise HTTPException(409, "Add Node vale só para replica set (sharded: adicione um shard; standalone: converta em replica set).")
+        if _busy_reason(c):
+            raise HTTPException(409, f"Não é possível adicionar nó: {_busy_reason(c)}.")
         if len(c["nodes"]) >= 12:
             raise HTTPException(409, "O deployment já atingiu o limite de 12 nós da demo.")
         host = req.host or f"{c['name']}-node-0{len(c['nodes'])+1}.mongodb-brazil.internal:27017"
@@ -287,61 +424,70 @@ def add_node(cid: str, req: NewNode):
             raise HTTPException(409, "Host já pertence ao deployment.")
         c["nodes"].append({"host": host, "role": "SECONDARY", "version": c["version"], "status": "green", "uptime": "just now", "conn": 0, "disk": 3, "lag": "0.0s"})
         _register_agents(c)
-        _log_activity("admin@mongodb-brazil.com", "ADD NODE", c["name"], f"Nó {host} adicionado ao replica set")
+        _log_activity(ADMIN, "ADD NODE", c["name"], f"Nó {host} adicionado ao replica set")
     return c
 
 
 @app.post("/api/clusters/{cid}/stepdown")
 def step_down(cid: str, node_idx: int = 0):
+    _advance_all()
     with STATE_LOCK:
         c = find_cluster(cid)
         if not c:
             raise HTTPException(404, "Cluster não encontrado")
         if not 0 <= node_idx < len(c["nodes"]):
             raise HTTPException(404, "Nó não encontrado")
+        if _busy_reason(c):
+            raise HTTPException(409, f"Step down bloqueado: {_busy_reason(c)}.")
         old = next((n for n in c["nodes"] if n["role"] == "PRIMARY"), None)
-        new = next((n for i, n in enumerate(c["nodes"]) if i != node_idx and n["role"] == "SECONDARY"), None)
+        # Nó em initial sync (STARTUP2) não é elegível para eleição.
+        new = next((n for i, n in enumerate(c["nodes"]) if i != node_idx and n["role"] == "SECONDARY" and not n.get("resync_until")), None)
         if not old or not new:
             raise HTTPException(409, "Step down exige um PRIMARY e ao menos um SECONDARY elegível.")
         old["role"] = "SECONDARY"
         new["role"] = "PRIMARY"
         old["lag"] = "0.0s"
         new["lag"] = "—"
-        _log_activity("admin@mongodb-brazil.com", "STEP DOWN", c["name"], f"Novo PRIMARY: {new['host']}")
+        _log_activity(ADMIN, "STEP DOWN", c["name"], f"Novo PRIMARY: {new['host']}")
     return {"new_primary": new["host"], "cluster": c}
 
 
 @app.post("/api/clusters/{cid}/resync")
 def resync_node(cid: str, node_idx: int = 0):
     """Initial sync: o nó sai do quórum de leitura por alguns segundos e volta sozinho."""
+    _advance_all()
     with STATE_LOCK:
         c = find_cluster(cid)
         if not c:
             raise HTTPException(404, "Cluster não encontrado")
         if not 0 <= node_idx < len(c["nodes"]):
             raise HTTPException(404, "Nó não encontrado")
+        if _busy_reason(c):
+            raise HTTPException(409, f"Resync bloqueado: {_busy_reason(c)}.")
         n = c["nodes"][node_idx]
         if n["role"] == "PRIMARY":
             raise HTTPException(409, "Faça step down antes de ressincronizar o PRIMARY.")
+        if n["role"] != "SECONDARY":
+            raise HTTPException(409, f"Resync só se aplica a membro SECONDARY de replica set (este nó é {n['role']}).")
+        if n.get("resync_until"):
+            raise HTTPException(409, "Este nó já está em initial sync.")
         n["status"] = "yellow"
         n["state"] = "STARTUP2"
         n["lag"] = "sync"
         n["resync_until"] = time.time() + RESYNC_SECONDS
-        _log_activity("admin@mongodb-brazil.com", "RESYNC", c["name"], f"Initial sync iniciado em {n['host']}")
+        _log_activity(ADMIN, "RESYNC", c["name"], f"Initial sync iniciado em {n['host']}")
     return {"ok": True, "seconds": RESYNC_SECONDS, "cluster": c}
 
 
 @app.post("/api/clusters/{cid}/upgrade")
 def upgrade_cluster(cid: str, req: UpgradeReq):
+    _advance_all()
     with STATE_LOCK:
         c = find_cluster(cid)
         if not c:
             raise HTTPException(404, "Cluster não encontrado")
-        c["version"] = req.target_version
-        for n in c["nodes"]:
-            n["version"] = req.target_version
-        _log_activity("System", "UPGRADE", cid, f"Rolling upgrade to {req.target_version}")
-    return c
+        seconds = _start_upgrade(c, req.target_version, ADMIN, "deployments")
+    return {"ok": True, "seconds": seconds, "cluster": c}
 
 
 # ════════════════════════════════════════════════════════════
@@ -349,6 +495,7 @@ def upgrade_cluster(cid: str, req: UpgradeReq):
 # ════════════════════════════════════════════════════════════
 @app.get("/api/automation")
 def get_automation():
+    _advance_all()
     return {
         "agents_active": len(STATE["agents"]),
         "pending": STATE["pending_changes"],
@@ -358,16 +505,27 @@ def get_automation():
 
 @app.post("/api/automation/pending/{pid}/apply")
 def apply_pending(pid: str):
+    _advance_all()
     with STATE_LOCK:
         pc = next((p for p in STATE["pending_changes"] if p["id"] == pid), None)
         if not pc:
             raise HTTPException(404, "Mudança não encontrada")
+        c = find_cluster(pc["cluster"])
+        if not c:
+            raise HTTPException(409, f'Cluster "{pc["cluster"]}" não existe mais; descarte a mudança.')
+        seconds = 0
+        if pc.get("target_version"):
+            # Mesmo caminho do botão Upgrade: valida e vira rolling upgrade.
+            seconds = _start_upgrade(c, pc["target_version"], pc.get("by", ADMIN), "automation")
+        else:
+            c.setdefault("config", {}).update(pc.get("config", {}))
+            STATE["automation_history"].insert(0, {
+                "time": _now_str(), "cluster": pc["cluster"], "change": pc["desc"],
+                "status": "success", "duration": "aplicado (simulado)", "by": "admin",
+            })
+            _log_activity(ADMIN, "EDIT", pc["cluster"], f"Automation aplicou: {pc['desc']}")
         STATE["pending_changes"].remove(pc)
-        STATE["automation_history"].insert(0, {
-            "time": "agora", "cluster": pc["cluster"], "change": pc["desc"],
-            "status": "success", "duration": f"{random.randint(2,9)}m {random.randint(0,59)}s", "by": "admin",
-        })
-    return {"ok": True, "pending": STATE["pending_changes"]}
+    return {"ok": True, "pending": STATE["pending_changes"], "rolling": bool(seconds), "seconds": seconds}
 
 
 @app.delete("/api/automation/pending/{pid}")
@@ -404,7 +562,7 @@ def get_agent_logs(host: str):
         (58, "INFO", "Backup daemon: oplog slice aplicado"),
     ]
     return {
-        "host": a["host"], "cluster": a["cluster"], "version": a["version"],
+        "host": a["host"], "cluster": a["cluster"], "version": a["version"], "simulated": True,
         "lines": [
             {"ts": (now - timedelta(seconds=off)).strftime("%H:%M:%S"), "level": lvl, "msg": msg}
             for off, lvl, msg in linhas
@@ -415,10 +573,12 @@ def get_agent_logs(host: str):
 @app.post("/api/agents/upgrade")
 def upgrade_agents():
     with STATE_LOCK:
+        if STATE["agents"] and all(a["version"] == AGENT_LATEST for a in STATE["agents"]):
+            raise HTTPException(409, f"Todos os agents já estão em {AGENT_LATEST}.")
         for a in STATE["agents"]:
             a["version"] = AGENT_LATEST
         STATE["agent_version"] = AGENT_LATEST
-        _log_activity("admin@mongodb-brazil.com", "AGENT UPGRADE", "Automation", f"{len(STATE['agents'])} agent(s) em {AGENT_LATEST}")
+        _log_activity(ADMIN, "AGENT UPGRADE", "Automation", f"{len(STATE['agents'])} agent(s) em {AGENT_LATEST}")
     return {"ok": True, "version": AGENT_LATEST}
 
 
@@ -632,18 +792,55 @@ def get_perf_advisor():
     }
 
 
-@app.post("/api/perf-advisor/index/{idx}")
-def create_index(idx: int):
+@app.post("/api/perf-advisor/index/{sid}")
+def create_index(sid: str):
+    """Chave estável (id), não posição: duas abas não criam o índice errado."""
     with STATE_LOCK:
-        if 0 <= idx < len(STATE["perf_index_suggestions"]):
-            removed = STATE["perf_index_suggestions"].pop(idx)
-            return {"ok": True, "created": removed, "remaining": STATE["perf_index_suggestions"]}
-        raise HTTPException(404, "Sugestão não encontrada")
+        s = next((x for x in STATE["perf_index_suggestions"] if x["id"] == sid), None)
+        if not s:
+            raise HTTPException(404, "Sugestão não encontrada (o índice pode já ter sido criado).")
+        STATE["perf_index_suggestions"].remove(s)
+        _log_activity(ADMIN, "CREATE INDEX", s["ns"], f"Rolling index build {s['idx']}")
+    return {"ok": True, "created": s, "remaining": STATE["perf_index_suggestions"]}
 
 
 # ════════════════════════════════════════════════════════════
 # BACKUP / RESTORE
 # ════════════════════════════════════════════════════════════
+def _size_gb(size: str) -> float:
+    try:
+        return float(str(size).split()[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _pit_windows():
+    """Janela de point-in-time por cluster: do snapshot retido mais antigo ao
+    mais recente (na linha do tempo fictícia do seed). Um snapshot manual novo
+    estende a janela até agora."""
+    windows = {}
+    for s in STATE["snapshots"]:
+        ts = _parse_ts(s["created"])
+        if not ts:
+            continue
+        w = windows.setdefault(s["cluster"], {"from": ts, "to": ts, "snapshots": 0, "latest_size": s["size"]})
+        w["snapshots"] += 1
+        if ts < w["from"]:
+            w["from"] = ts
+        if ts >= w["to"]:
+            w["to"] = ts
+            w["latest_size"] = s["size"]
+    return windows
+
+
+def _public_windows():
+    return {
+        k: {"from": v["from"].strftime("%Y-%m-%d %H:%M"), "to": v["to"].strftime("%Y-%m-%d %H:%M"),
+            "snapshots": v["snapshots"], "latest_size": v["latest_size"]}
+        for k, v in _pit_windows().items()
+    }
+
+
 @app.get("/api/backup")
 def get_backup():
     protected = sum(1 for c in STATE["clusters"] if c["type"] != "standalone")
@@ -651,17 +848,30 @@ def get_backup():
         "protected": protected,
         "total_snapshots": len(STATE["snapshots"]) + STATE["snapshot_base"],
         "snapshots": STATE["snapshots"],
+        "storage_gb": round(sum(_size_gb(s["size"]) for s in STATE["snapshots"]), 1),
+        "pit_windows": _public_windows(),
+        "simulated": True,
     }
 
 
 @app.post("/api/backup/snapshot")
 def take_snapshot(cluster: str):
     with STATE_LOCK:
-        if not any(c["name"] == cluster for c in STATE["clusters"]):
-            raise HTTPException(404, f'Cluster "{cluster}" não encontrado.')
-        last_num = int(STATE["snapshots"][0]["id"].split("-")[1]) if STATE["snapshots"] else 142
-        snap = {"id": f"snap-{str(last_num+1).zfill(5)}", "cluster": cluster, "type": "Manual", "created": "agora", "size": "42 GB", "expires": "2024-02-15", "status": "ready"}
+        c = next((x for x in STATE["clusters"] if x["name"] == cluster), None)
+        if not c:
+            raise HTTPException(404, f'Cluster "{cluster[:64]}" não encontrado.')
+        if c["type"] == "standalone":
+            raise HTTPException(409, "Backup vale para replica set e sharded cluster: standalone não tem oplog (sem backup contínuo nem PIT). Converta em replica set de um membro.")
+        last_num = max((int(s["id"].split("-")[1]) for s in STATE["snapshots"]), default=142)
+        now = _utcnow()
+        previous = next((s for s in STATE["snapshots"] if s["cluster"] == cluster), None)
+        snap = {
+            "id": f"snap-{str(last_num + 1).zfill(5)}", "cluster": cluster, "type": "Manual",
+            "created": now.strftime("%Y-%m-%d %H:%M"), "size": previous["size"] if previous else "1 GB",
+            "expires": (now + timedelta(days=30)).strftime("%Y-%m-%d"), "status": "ready",
+        }
         STATE["snapshots"].insert(0, snap)
+        _log_activity(ADMIN, "SNAPSHOT", cluster, f"Snapshot manual {snap['id']} concluído")
     return snap
 
 
@@ -672,6 +882,7 @@ def delete_snapshot(sid: str):
         if not s:
             raise HTTPException(404, "Snapshot não encontrado")
         STATE["snapshots"].remove(s)
+        _log_activity(ADMIN, "SNAPSHOT DELETE", s["cluster"], f"Snapshot {sid} removido")
     return {"ok": True}
 
 
@@ -679,18 +890,6 @@ def delete_snapshot(sid: str):
 # ao longo de alguns segundos, evoluindo sozinho sem intervenção do cliente) ──
 RESTORE_RUNNING_SECONDS = 3
 RESTORE_TOTAL_SECONDS = 9
-
-
-def _update_restore_jobs():
-    now = time.time()
-    with STATE_LOCK:
-        for j in STATE["restore_jobs"]:
-            running_at = j.get("_running_at")
-            done_at = j.get("_done_at")
-            if j["status"] == "queued" and running_at and now >= running_at:
-                j["status"] = "running"
-            if j["status"] in ("queued", "running") and done_at and now >= done_at:
-                j["status"] = "completed"
 
 
 def _public_job(j):
@@ -703,27 +902,74 @@ def get_restore_jobs():
     return [_public_job(j) for j in STATE["restore_jobs"]]
 
 
+def _active_restore(name):
+    return next((j for j in STATE["restore_jobs"] if j["status"] in ("queued", "running")
+                 and (j["cluster"] == name or j.get("target_cluster") == name)), None)
+
+
 @app.post("/api/restore")
 def start_restore(req: NewRestore):
+    _update_restore_jobs()
     with STATE_LOCK:
         c = find_cluster(req.cluster)
         if not c:
             raise HTTPException(404, f'Cluster "{req.cluster}" não encontrado.')
-        last_num = int(STATE["restore_jobs"][0]["id"].split("-")[1]) if STATE["restore_jobs"] else 142
+        if c["type"] == "standalone":
+            raise HTTPException(409, "Standalone não tem oplog nem backup contínuo; não há snapshot para restaurar.")
+        window = _pit_windows().get(c["name"])
+        if not window:
+            raise HTTPException(409, f"{c['name']} não tem nenhum snapshot: faça um backup antes de restaurar.")
+
+        target_cluster = None
+        if req.target not in ("same", "download"):
+            target_cluster = find_cluster(req.target)
+            if not target_cluster:
+                raise HTTPException(404, f'Cluster de destino "{req.target}" não encontrado.')
+            if target_cluster["id"] == c["id"]:
+                target_cluster = None
+            elif target_cluster["type"] != c["type"]:
+                raise HTTPException(409, "O destino precisa ter a mesma topologia da origem (replica set → replica set, sharded → sharded).")
+        busy = _active_restore(c["name"]) or (target_cluster and _active_restore(target_cluster["name"]))
+        if busy:
+            raise HTTPException(409, f"Já existe um restore em andamento ({busy['id']}); aguarde concluir.")
+
+        if req.snapshot_id:
+            snap = next((s for s in STATE["snapshots"] if s["id"] == req.snapshot_id), None)
+            if not snap or snap["cluster"] != c["name"]:
+                raise HTTPException(404, f"Snapshot {req.snapshot_id} não encontrado para {c['name']}.")
+            kind, point = "Snapshot", snap["created"]
+        else:
+            if not req.point:
+                raise HTTPException(422, "Informe o ponto de restore (ou um snapshot_id).")
+            ts = _parse_ts(req.point)
+            if not ts:
+                raise HTTPException(422, "Ponto de restore inválido: use AAAA-MM-DDTHH:MM (UTC).")
+            if not window["from"] <= ts <= window["to"]:
+                raise HTTPException(
+                    422,
+                    f"Ponto fora da janela de PIT de {c['name']}: "
+                    f"{window['from']:%Y-%m-%d %H:%M} → {window['to']:%Y-%m-%d %H:%M} UTC.",
+                )
+            kind, point = "PIT", ts.strftime("%Y-%m-%dT%H:%M")
+
+        last_num = max((int(j["id"].split("-")[1]) for j in STATE["restore_jobs"]), default=142)
         now = time.time()
         job = {
-            "id": f"rst-{str(last_num+1).zfill(5)}",
-            "cluster": req.cluster,
-            "type": "PIT",
-            "point": req.point,
+            "id": f"rst-{str(last_num + 1).zfill(5)}",
+            "cluster": c["name"],
+            "type": kind,
+            "point": point,
             "target": req.target,
             "status": "queued",
-            "started": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "started": _now_str(),
             "_running_at": now + RESTORE_RUNNING_SECONDS,
             "_done_at": now + RESTORE_TOTAL_SECONDS,
         }
+        if target_cluster:
+            job["target_cluster"] = target_cluster["name"]
         STATE["restore_jobs"].insert(0, job)
-        _log_activity("admin@mongodb-brazil.com", "RESTORE", req.cluster, f"Point-in-time restore iniciado ({req.point} → {req.target})")
+        label = "Point-in-time" if kind == "PIT" else f"Snapshot {req.snapshot_id}"
+        _log_activity(ADMIN, "RESTORE", c["name"], f"{label} restore iniciado ({point} → {req.target})")
     return {"ok": True, "seconds": RESTORE_TOTAL_SECONDS, "job": _public_job(job)}
 
 
@@ -763,8 +1009,8 @@ def acknowledge_alert(aid: int):
             raise HTTPException(409, "Alerta já reconhecido.")
         a["acked"] = True
         a["acked_until"] = time.time() + ACK_MINUTES * 60
-        a["acked_by"] = "admin@mongodb-brazil.com"
-        _log_activity("admin@mongodb-brazil.com", "ALERT ACK", a["target"], f"{a['title']} silenciado por {ACK_MINUTES}min")
+        a["acked_by"] = ADMIN
+        _log_activity(ADMIN, "ALERT ACK", a["target"], f"{a['title']} silenciado por {ACK_MINUTES}min")
     return {"ok": True, "alert": a, "minutes": ACK_MINUTES}
 
 
@@ -776,25 +1022,31 @@ def resolve_alert(aid: int):
             raise HTTPException(404, "Alerta não encontrado")
         STATE["alerts_open"].remove(a)
         STATE["alerts_closed_count"] += 1
-        _log_activity("admin@mongodb-brazil.com", "ALERT RESOLVE", a["target"], a["title"])
+        _log_activity(ADMIN, "ALERT RESOLVE", a["target"], a["title"])
     return {"ok": True, "open": STATE["alerts_open"], "closed_count": STATE["alerts_closed_count"]}
 
 
 @app.post("/api/alerts/configs")
 def add_alert_config(req: NewAlertConfig):
     with STATE_LOCK:
-        cfg = {"cond": req.cond, "target": req.target, "thresh": req.thresh, "notify": req.notify, "on": True}
+        key = (req.cond.strip().lower(), req.target.strip().lower(), req.thresh.strip().lower())
+        if any((c["cond"].lower(), c["target"].lower(), c["thresh"].lower()) == key for c in STATE["alert_configs"]):
+            raise HTTPException(409, "Já existe uma configuração com a mesma condição, alvo e limite.")
+        last = max((int(c["id"].split("-")[1]) for c in STATE["alert_configs"]), default=0)
+        cfg = {"id": f"ac-{last + 1}", "cond": req.cond.strip(), "target": req.target.strip(),
+               "thresh": req.thresh.strip(), "notify": req.notify.strip(), "on": True}
         STATE["alert_configs"].insert(0, cfg)
     return cfg
 
 
-@app.delete("/api/alerts/configs/{idx}")
-def delete_alert_config(idx: int):
+@app.delete("/api/alerts/configs/{cfg_id}")
+def delete_alert_config(cfg_id: str):
     with STATE_LOCK:
-        if 0 <= idx < len(STATE["alert_configs"]):
-            STATE["alert_configs"].pop(idx)
-            return {"ok": True}
-        raise HTTPException(404, "Config não encontrada")
+        cfg = next((c for c in STATE["alert_configs"] if c["id"] == cfg_id), None)
+        if not cfg:
+            raise HTTPException(404, "Config não encontrada")
+        STATE["alert_configs"].remove(cfg)
+    return {"ok": True}
 
 
 # ════════════════════════════════════════════════════════════
@@ -816,7 +1068,7 @@ def add_user(req: NewUser):
         req.name = name
         u = {"name": req.name, "auth": req.auth, "roles": [req.role], "db": req.role.split("@")[-1] if "@" in req.role else "admin", "created": "just now", "status": "active"}
         STATE["users"].insert(0, u)
-        _log_activity("admin@mongodb-brazil.com", "USER CREATE", "Security", f"New user: {req.name}")
+        _log_activity(ADMIN, "USER CREATE", "Security", f"New user: {req.name}")
     return u
 
 
@@ -838,18 +1090,21 @@ def get_roles():
 @app.post("/api/roles")
 def add_role(req: NewRole):
     with STATE_LOCK:
+        if any(r["name"] == req.name for r in STATE["roles"]):
+            raise HTTPException(409, f'Role "{req.name}" já existe.')
         r = {"name": req.name, "priv": req.priv, "inherits": req.inherits, "users": 0}
         STATE["roles"].insert(0, r)
     return r
 
 
-@app.delete("/api/roles/{idx}")
-def delete_role(idx: int):
+@app.delete("/api/roles/{name}")
+def delete_role(name: str):
     with STATE_LOCK:
-        if 0 <= idx < len(STATE["roles"]):
-            STATE["roles"].pop(idx)
-            return {"ok": True}
-        raise HTTPException(404, "Role não encontrada")
+        r = next((x for x in STATE["roles"] if x["name"] == name), None)
+        if not r:
+            raise HTTPException(404, "Role não encontrada")
+        STATE["roles"].remove(r)
+    return {"ok": True}
 
 
 @app.get("/api/security/ip")
@@ -857,21 +1112,32 @@ def get_ips():
     return STATE["ip_access_list"]
 
 
+def _same_network(a: str, b: str) -> bool:
+    try:
+        return ip_network(a, strict=False) == ip_network(b, strict=False)
+    except ValueError:
+        return False
+
+
 @app.post("/api/security/ip")
 def add_ip(req: NewIP):
     with STATE_LOCK:
+        if any(_same_network(e["ip"], req.ip) for e in STATE["ip_access_list"]):
+            raise HTTPException(409, f"{req.ip} já está na IP access list.")
         entry = {"ip": req.ip, "comment": req.comment or "—", "added": "just now"}
         STATE["ip_access_list"].append(entry)
     return entry
 
 
-@app.delete("/api/security/ip/{idx}")
-def delete_ip(idx: int):
+@app.delete("/api/security/ip")
+def delete_ip(ip: str = Query(min_length=3, max_length=64)):
+    """Remove pela rede (chave estável), não pela posição na lista."""
     with STATE_LOCK:
-        if 0 <= idx < len(STATE["ip_access_list"]):
-            STATE["ip_access_list"].pop(idx)
-            return {"ok": True}
-        raise HTTPException(404, "IP não encontrado")
+        e = next((x for x in STATE["ip_access_list"] if x["ip"] == ip or _same_network(x["ip"], ip)), None)
+        if not e:
+            raise HTTPException(404, "IP não encontrado")
+        STATE["ip_access_list"].remove(e)
+    return {"ok": True}
 
 
 @app.get("/api/audit")
@@ -888,19 +1154,22 @@ def get_activity():
 
 
 def _log_activity(user, action, resource, details):
-    STATE["activity"].insert(0, {"time": "agora", "user": user, "action": action, "resource": resource, "details": details})
+    STATE["activity"].insert(0, {"time": _now_str(), "user": user, "action": action, "resource": resource, "details": details})
 
 
 @app.post("/api/reset")
 def reset_demo():
+    """Volta 100% ao seed: estado, séries de métricas, operações vivas e o
+    último scan do Performance Advisor (coberto por teste)."""
     global STATE
     with STATE_LOCK:
         STATE = data.seed()
         _WALKS.clear()
         _RT_OPS.clear()
+        _PERF_LAST_AVG_MS["value"] = None
     return {"ok": True}
 
 
 @app.get("/")
 def root():
-    return {"service": "MongoDB Ops Manager — Demo API", "docs": "/docs", "status": "ok"}
+    return {"service": "MongoDB Ops Manager — Demo API", "docs": "/docs", "status": "ok", "simulated": True}

@@ -24,9 +24,9 @@ Sobe backend (porta 8077) + frontend (porta 5377). Use `POV_DEV=1` para HMR.
 ```bash
 # Terminal 1 — backend
 cd backend
-python3.13 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --port 8077      # Swagger em http://localhost:8077/docs
+uvicorn main:app --host 127.0.0.1 --port 8077   # Swagger em http://localhost:8077/docs
 
 # Terminal 2 — frontend
 cd frontend
@@ -40,12 +40,14 @@ O Vite faz proxy de `/api` → backend (porta 8077) automaticamente em dev.
 ```
 backend/
   main.py            # FastAPI — endpoints REST + mutações
-  data.py            # estado-semente em memória (clusters, snapshots, users…)
+  data.py            # carrega o seed (frontend/src/api/seed.json) e devolve cópias
+  tests/             # pytest + cenários compartilhados com o mock
   requirements.txt
 frontend/
   src/
     api/client.js    # camada axios (todos os endpoints tipados) + errMsg()
     api/mock.js      # mesma API 100% no cliente, para o build do GitHub Pages
+    api/seed.json    # estado inicial único dos dois modos
     components/       # TopBar, Sidebar, MongoLeaf, LineChart, ui helpers
     modals/           # New Deployment, Connect, Agent Logs
     pages/            # uma por seção; só o Dashboard entra no bundle inicial
@@ -72,6 +74,13 @@ Monitoring e ciclo de vida:
 | `POST /api/clusters/{id}/stepdown` | eleição, com PRIMARY e SECONDARY validados |
 | `GET /api/agents/{host}/logs` | últimas linhas do log do agent |
 | `POST /api/alerts/{id}/acknowledge` | silencia o alerta por 60 minutos |
+| `POST /api/clusters/{id}/upgrade` | inicia rolling upgrade simulado (`cluster.upgrade` mostra `done/total`) |
+| `GET /api/backup` | snapshots + `pit_windows` por cluster + `storage_gb` (simulado) |
+| `POST /api/restore` | `{cluster, point}` (PIT) ou `{cluster, snapshot_id}`; `target` = `same`, `download` ou cluster de mesma topologia |
+| `DELETE /api/roles/{name}` · `DELETE /api/security/ip?ip=` · `DELETE /api/alerts/configs/{id}` · `POST /api/perf-advisor/index/{id}` | remoção por chave estável |
+
+As regras de recusa (409/422) estão em `docs/briefing/architecture.md`, seção
+"Regras de simulação", e em `backend/tests/scenarios_adversarial.json`.
 
 ## Estado
 

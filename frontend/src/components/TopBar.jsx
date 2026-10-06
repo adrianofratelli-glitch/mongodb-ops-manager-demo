@@ -40,6 +40,10 @@ export default function TopBar({ org, project, onNewDeployment, onBell }) {
 
       <div className="ops-topbar__spacer" style={{ flex: 1 }} />
 
+      <span className="ops-sim-chip" title="Nenhuma ação fala com um Ops Manager real: estado fictício em memória, volta ao inicial com Reset Demo.">
+        Simulação · dados fictícios
+      </span>
+
       <span className="ops-automation-state" aria-label="Automation ativa">
         <i aria-hidden="true" />
         Automation active

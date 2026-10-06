@@ -43,7 +43,7 @@ export default function Alerts({ toast, refreshCounts }) {
     { header: 'Threshold', key: 'thresh' },
     { header: 'Notify', key: 'notify' },
     { header: 'Status', render: (r) => <Toggle size="small" checked={r.on} onChange={() => toast('Alerta', r.cond, 'note')} aria-label="toggle" /> },
-    { header: 'Actions', render: (r, i) => <Button size="xsmall" variant="dangerOutline" onClick={() => delCfg(i)}>Delete</Button> },
+    { header: 'Actions', render: (r) => <Button size="xsmall" variant="dangerOutline" onClick={() => delCfg(r.id)}>Delete</Button> },
   ]
 
   return (
