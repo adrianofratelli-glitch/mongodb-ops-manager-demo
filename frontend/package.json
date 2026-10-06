@@ -1,13 +1,14 @@
 {
   "name": "opsmgr-leafygreen",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:pages": "VITE_USE_MOCK=1 VITE_BASE=/mongodb-ops-manager-demo/ vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:parity": "node tests/mock_parity.mjs"
   },
   "dependencies": {
     "@leafygreen-ui/badge": "^10.2.4",
