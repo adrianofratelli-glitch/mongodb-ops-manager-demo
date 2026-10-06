@@ -2,144 +2,46 @@
 // MODO MOCK — replica o backend FastAPI 100% no cliente.
 // Usado no build estático (GitHub Pages) onde não há backend Python.
 // Mesma interface do RealAPI (axios) — todos os métodos retornam Promise.
+// O seed é o MESMO arquivo que o backend lê (seed.json) e as regras são
+// verificadas pelos mesmos cenários (backend/tests/scenarios_adversarial.json,
+// executados aqui por frontend/tests/mock_parity.mjs).
+// Tudo é SIMULADO: nada fala com um Ops Manager real.
 // ──────────────────────────────────────────────────────────────
+import SEED from './seed.json' with { type: 'json' }
 
 const seed = () => JSON.parse(JSON.stringify(SEED))
-
-const SEED = {
-  org: 'MongoDB Brazil',
-  project: 'Production',
-  clusters: [
-    { id: 'rs-prod-01', type: 'rs', name: 'rs-prod-01', version: '7.0.5', status: 'warning', nodes: [
-      { host: 'mongo-node-01.mongodb-brazil.internal:27017', role: 'PRIMARY', version: '7.0.5', status: 'green', uptime: '14d 6h', conn: 342, disk: 62, lag: '—' },
-      { host: 'mongo-node-02.mongodb-brazil.internal:27017', role: 'SECONDARY', version: '7.0.5', status: 'yellow', uptime: '14d 6h', conn: 201, disk: 91, lag: '0.8s' },
-      { host: 'mongo-node-03.mongodb-brazil.internal:27017', role: 'SECONDARY', version: '7.0.5', status: 'green', uptime: '14d 6h', conn: 198, disk: 58, lag: '0.2s' },
-    ]},
-    { id: 'sharded-analytics', type: 'sharded', name: 'sharded-analytics', version: '7.0.5', status: 'healthy', nodes: [
-      { host: 'mongos-01.mongodb-brazil.internal:27017', role: 'mongos', version: '7.0.5', status: 'green', uptime: '30d', conn: 520, disk: 0, lag: '—' },
-      { host: 'shard-01-n1.mongodb-brazil.internal:27018', role: 'Shard PRIMARY', version: '7.0.5', status: 'green', uptime: '30d', conn: 180, disk: 45, lag: '—' },
-      { host: 'shard-02-n1.mongodb-brazil.internal:27018', role: 'Shard PRIMARY', version: '7.0.5', status: 'green', uptime: '30d', conn: 165, disk: 51, lag: '—' },
-      { host: 'configsvr-01.mongodb-brazil.internal:27019', role: 'Config Server', version: '7.0.5', status: 'green', uptime: '30d', conn: 12, disk: 18, lag: '—' },
-    ]},
-    { id: 'rs-staging', type: 'rs', name: 'rs-staging', version: '6.0.12', status: 'healthy', nodes: [
-      { host: 'stg-mongo-01.mongodb-brazil.internal:27017', role: 'PRIMARY', version: '6.0.12', status: 'green', uptime: '5d', conn: 42, disk: 22, lag: '—' },
-      { host: 'stg-mongo-02.mongodb-brazil.internal:27017', role: 'SECONDARY', version: '6.0.12', status: 'green', uptime: '5d', conn: 38, disk: 21, lag: '0.1s' },
-    ]},
-    { id: 'mongo-dev-01', type: 'standalone', name: 'mongo-dev-01', version: '7.0.5', status: 'healthy', nodes: [
-      { host: 'dev-mongo.mongodb-brazil.internal:27017', role: 'Standalone', version: '7.0.5', status: 'green', uptime: '2d', conn: 8, disk: 12, lag: '—' },
-    ]},
-  ],
-  snapshots: [
-    { id: 'snap-00142', cluster: 'rs-prod-01', type: 'Automated', created: '2024-01-15 08:00', size: '42 GB', expires: '2024-02-14', status: 'ready' },
-    { id: 'snap-00141', cluster: 'rs-prod-01', type: 'Automated', created: '2024-01-15 02:00', size: '41 GB', expires: '2024-02-14', status: 'ready' },
-    { id: 'snap-00140', cluster: 'rs-prod-01', type: 'Automated', created: '2024-01-14 20:00', size: '40 GB', expires: '2024-02-13', status: 'ready' },
-    { id: 'snap-00139', cluster: 'rs-prod-01', type: 'Manual', created: '2024-01-14 14:00', size: '40 GB', expires: '2024-02-13', status: 'ready' },
-    { id: 'snap-00138', cluster: 'sharded-analytics', type: 'Automated', created: '2024-01-15 06:00', size: '218 GB', expires: '2024-01-29', status: 'ready' },
-    { id: 'snap-00137', cluster: 'sharded-analytics', type: 'Automated', created: '2024-01-14 18:00', size: '215 GB', expires: '2024-01-28', status: 'ready' },
-    { id: 'snap-00136', cluster: 'rs-staging', type: 'Automated', created: '2024-01-15 09:00', size: '18 GB', expires: '2024-01-22', status: 'ready' },
-    { id: 'snap-00135', cluster: 'rs-staging', type: 'Automated', created: '2024-01-14 21:00', size: '17 GB', expires: '2024-01-21', status: 'ready' },
-  ],
-  snapshot_base: 100,
-  restore_jobs: [
-    { id: 'rst-00142', cluster: 'rs-prod-01', type: 'PIT', point: '2024-01-14T09:00', target: 'Restore to rs-staging', status: 'completed', started: '2024-01-14 09:12' },
-    { id: 'rst-00141', cluster: 'sharded-analytics', type: 'Snapshot', point: '2024-01-13T18:00', target: 'Automated', status: 'completed', started: '2024-01-13 18:45' },
-  ],
-  users: [
-    { name: 'admin', auth: 'SCRAM-SHA-256', roles: ['root@admin'], db: 'admin', created: '2023-06-01', status: 'active' },
-    { name: 'app_service', auth: 'SCRAM-SHA-256', roles: ['readWrite@app_db'], db: 'app_db', created: '2023-08-12', status: 'active' },
-    { name: 'analytics_ro', auth: 'SCRAM-SHA-256', roles: ['read@analytics'], db: 'analytics', created: '2023-09-03', status: 'active' },
-    { name: 'backup_user', auth: 'SCRAM-SHA-256', roles: ['backup@admin'], db: 'admin', created: '2023-06-15', status: 'active' },
-    { name: 'monitor_svc', auth: 'x.509', roles: ['clusterMonitor@admin'], db: '$external', created: '2023-07-20', status: 'active' },
-    { name: 'legacy_app', auth: 'SCRAM-SHA-1', roles: ['readWrite@legacy'], db: 'legacy', created: '2022-12-01', status: 'disabled' },
-  ],
-  roles: [
-    { name: 'analyticsReadOnly', priv: 'find, listCollections, collStats', inherits: 'read', users: 3 },
-    { name: 'appWriter', priv: 'find, insert, update, remove', inherits: 'readWrite', users: 5 },
-    { name: 'indexManager', priv: 'createIndex, dropIndex, listIndexes', inherits: '(none)', users: 1 },
-  ],
-  alerts_open: [
-    { id: 1, sev: 'crit', title: 'Disk utilization above 90%', target: 'rs-prod-01 / mongo-node-02', detail: 'Current: 91% · Threshold: 90%', time: '2 min ago' },
-    { id: 2, sev: 'warn', title: 'Replication lag above threshold', target: 'rs-prod-01 / mongo-node-02', detail: 'Current: 0.8s · Threshold: 0.5s', time: '18 min ago' },
-    { id: 3, sev: 'warn', title: 'High connection count', target: 'sharded-analytics / mongos-01', detail: 'Current: 520 · Threshold: 500', time: '1h ago' },
-  ],
-  alerts_closed_count: 28,
-  alert_configs: [
-    { cond: 'Host is down', target: 'All clusters', thresh: '—', notify: 'Email, PagerDuty', on: true },
-    { cond: 'Disk space % used is above', target: 'All clusters', thresh: '90%', notify: 'Email, Slack', on: true },
-    { cond: 'CPU utilization is above', target: 'rs-prod-01', thresh: '85%', notify: 'Email', on: true },
-    { cond: 'Connections is above', target: 'All clusters', thresh: '500', notify: 'Slack', on: true },
-    { cond: 'Replication lag is above', target: 'rs-prod-01', thresh: '0.5s', notify: 'Email, PagerDuty', on: true },
-    { cond: 'Page faults is above', target: 'All clusters', thresh: '100/s', notify: 'Email', on: false },
-  ],
-  pending_changes: [
-    { id: 'pc-1', cluster: 'rs-prod-01', type: 'Version Upgrade', desc: '7.0.5 → 7.0.6 (rolling upgrade)', by: 'admin@mongodb-brazil.com', time: '30 min ago' },
-    { id: 'pc-2', cluster: 'sharded-analytics', type: 'Config Change', desc: 'WiredTiger cache 4GB → 8GB', by: 'john.doe@mongodb-brazil.com', time: '1h ago' },
-  ],
-  automation_history: [
-    { time: '2024-01-15 10:42', cluster: 'rs-prod-01', change: 'Oplog size 5GB → 10GB', status: 'success', duration: '4m 12s', by: 'admin' },
-    { time: '2024-01-14 22:10', cluster: 'rs-staging', change: 'Version upgrade 6.0.11 → 6.0.12', status: 'success', duration: '12m 30s', by: 'System' },
-    { time: '2024-01-14 14:00', cluster: 'sharded-analytics', change: 'Added shard shard-02', status: 'success', duration: '8m 05s', by: 'john.doe' },
-    { time: '2024-01-13 09:00', cluster: 'rs-prod-01', change: 'TLS certificate rotation', status: 'success', duration: '6m 18s', by: 'admin' },
-    { time: '2024-01-12 16:30', cluster: 'rs-prod-01', change: 'Add hidden secondary node', status: 'failed', duration: '2m 01s', by: 'admin' },
-  ],
-  agents: [
-    { host: 'mongo-node-01.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '5s ago', cluster: 'rs-prod-01' },
-    { host: 'mongo-node-02.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '5s ago', cluster: 'rs-prod-01' },
-    { host: 'mongo-node-03.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '7s ago', cluster: 'rs-prod-01' },
-    { host: 'mongos-01.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring', ping: '4s ago', cluster: 'sharded-analytics' },
-    { host: 'shard-01-n1.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '6s ago', cluster: 'sharded-analytics' },
-    { host: 'shard-02-n1.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '5s ago', cluster: 'sharded-analytics' },
-    { host: 'configsvr-01.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring', ping: '5s ago', cluster: 'sharded-analytics' },
-    { host: 'stg-mongo-01.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '9s ago', cluster: 'rs-staging' },
-    { host: 'stg-mongo-02.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring + Backup', ping: '9s ago', cluster: 'rs-staging' },
-    { host: 'dev-mongo.mongodb-brazil.internal', status: 'Running', version: '12.0.27', type: 'Automation + Monitoring', ping: '12s ago', cluster: 'mongo-dev-01' },
-  ],
-  perf_index_suggestions: [
-    { impact: 'high', ns: 'app_db.orders', idx: '{ customerId: 1, createdAt: -1 }', queries: 42, improvement: '~95% faster (12,400 → 8 docs)' },
-    { impact: 'high', ns: 'app_db.sessions', idx: '{ userId: 1, expiresAt: 1 }', queries: 38, improvement: '~88% faster (COLLSCAN → IXSCAN)' },
-    { impact: 'med', ns: 'analytics.events', idx: '{ eventType: 1, timestamp: -1 }', queries: 21, improvement: '~70% faster' },
-    { impact: 'med', ns: 'app_db.products', idx: '{ category: 1, price: 1 }', queries: 15, improvement: '~60% faster (sort in memory removed)' },
-  ],
-  perf_slow_queries: [
-    { ns: 'app_db.orders', shape: '{ customerId: ?, status: ? }', time: '412ms', count: 1240, examined: '12,400', idx: 'COLLSCAN' },
-    { ns: 'app_db.sessions', shape: '{ userId: ? }', time: '287ms', count: 980, examined: '8,900', idx: 'COLLSCAN' },
-    { ns: 'analytics.events', shape: '{ eventType: ?, timestamp: {$gt:?} }', time: '196ms', count: 540, examined: '45,000', idx: 'timestamp_1' },
-    { ns: 'app_db.products', shape: '{ category: ? } sort { price: 1 }', time: '154ms', count: 310, examined: '6,200', idx: 'category_1' },
-    { ns: 'app_db.users', shape: '{ email: ? }', time: '98ms', count: 2100, examined: '1', idx: 'email_1 ✓' },
-  ],
-  ip_access_list: [
-    { ip: '10.0.0.0/16', comment: 'Internal VPC', added: 'Jan 01' },
-    { ip: '203.0.113.42/32', comment: 'Office VPN gateway', added: 'Jan 05' },
-    { ip: '198.51.100.0/24', comment: 'Monitoring subnet', added: 'Jan 10' },
-  ],
-  audit_events: [
-    { ts: '2024-01-15 10:42:18', user: 'admin@mongodb-brazil.com', action: 'createUser', res: 'app_db.app_service', ip: '10.0.1.42', result: 'success' },
-    { ts: '2024-01-15 10:38:02', user: 'app_service', action: 'authenticate', res: 'app_db', ip: '10.0.2.15', result: 'success' },
-    { ts: '2024-01-15 10:35:51', user: 'unknown', action: 'authenticate', res: 'admin', ip: '203.0.113.99', result: 'fail' },
-    { ts: '2024-01-15 10:30:14', user: 'admin@mongodb-brazil.com', action: 'dropCollection', res: 'staging.temp_data', ip: '10.0.1.42', result: 'success' },
-    { ts: '2024-01-15 10:22:40', user: 'analytics_ro', action: 'authCheck', res: 'analytics.events (find)', ip: '10.0.2.88', result: 'success' },
-    { ts: '2024-01-15 10:18:33', user: 'analytics_ro', action: 'authCheck', res: 'app_db.users (find)', ip: '10.0.2.88', result: 'fail' },
-    { ts: '2024-01-15 10:05:11', user: 'backup_user', action: 'authenticate', res: 'admin', ip: '10.0.1.10', result: 'success' },
-    { ts: '2024-01-15 09:58:02', user: 'admin@mongodb-brazil.com', action: 'updateRole', res: 'admin.appWriter', ip: '10.0.1.42', result: 'success' },
-  ],
-  activity: [
-    { time: '2024-01-15 10:42', user: 'admin@mongodb-brazil.com', action: 'EDIT', resource: 'rs-prod-01', details: 'Changed oplog size to 10GB' },
-    { time: '2024-01-15 09:15', user: 'System', action: 'SNAPSHOT', resource: 'rs-prod-01', details: 'Automated snapshot completed (42GB)' },
-    { time: '2024-01-15 08:30', user: 'System', action: 'ALERT RESOLVED', resource: 'rs-prod-01', details: 'High connections alert auto-resolved' },
-    { time: '2024-01-15 07:00', user: 'john.doe@mongodb-brazil.com', action: 'CREATE', resource: 'sharded-analytics', details: 'Added shard: shard-03' },
-    { time: '2024-01-14 22:10', user: 'System', action: 'UPGRADE', resource: 'rs-staging', details: 'MongoDB upgraded 6.0.11 → 6.0.12' },
-    { time: '2024-01-14 18:00', user: 'admin@mongodb-brazil.com', action: 'USER CREATE', resource: 'Security', details: 'New user: app_readonly created' },
-    { time: '2024-01-14 14:20', user: 'admin@mongodb-brazil.com', action: 'BACKUP CONFIG', resource: 'rs-prod-01', details: 'Retention policy updated to 30 days' },
-  ],
-}
 
 let STATE = seed()
 const ok = (v) => Promise.resolve(v)
 // Mesmo formato de erro do axios, para as páginas lerem error.response.data.detail
-const fail = (detail) => Promise.reject(Object.assign(new Error(detail), { response: { data: { detail } } }))
+const fail = (detail, status = 409) => Promise.reject(Object.assign(new Error(detail), { response: { status, data: { detail } } }))
+class ApiError extends Error { constructor(detail, status = 409) { super(detail); this.detail = detail; this.status = status } }
+// Executa uma mutação; ApiError vira rejeição no formato axios.
+const run = (fn) => { try { return ok(fn()) } catch (e) { if (e instanceof ApiError) return fail(e.detail, e.status); throw e } }
 const findCluster = (id) => STATE.clusters.find((c) => c.id === id)
-const logActivity = (user, action, resource, details) => STATE.activity.unshift({ time: 'agora', user, action, resource, details })
+const ADMIN = 'admin@mongodb-brazil.com'
+const pad = (n) => String(n).padStart(2, '0')
+const fmtTs = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+const nowStr = () => fmtTs(new Date(Date.now()))
+const logActivity = (user, action, resource, details) => STATE.activity.unshift({ time: nowStr(), user, action, resource, details })
+// Aceita "AAAA-MM-DD HH:MM" e "AAAA-MM-DDTHH:MM[:SS]" como UTC; null se inválido.
+function parseTs(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(v || ''))
+  if (!m) return null
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)))
+  return d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] ? d : null
+}
 
+const RELEASE_SERIES = ['4.4', '5.0', '6.0', '7.0', '8.0']
+const VERSION_RE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/
+const UPGRADE_SECONDS_PER_NODE = 3
+const vtuple = (v) => v.split('-')[0].split('.').map(Number)
+const series = (v) => vtuple(v).slice(0, 2).join('.')
+const cmpV = (a, b) => { const x = vtuple(a), y = vtuple(b); for (let i = 0; i < 3; i++) { if (x[i] !== y[i]) return x[i] - y[i] } return 0 }
+function checkKnownVersion(v) {
+  if (!VERSION_RE.test(v || '')) throw new ApiError('Versão inválida.', 422)
+  if (!RELEASE_SERIES.includes(series(v))) throw new ApiError(`Versão ${v} fora do catálogo da demo (release series ${RELEASE_SERIES.join(', ')}).`, 422)
+}
 const WINDOW = 60 // janela de 1 minuto a 1 ponto/segundo
 
 // Random walk com reversão à média por cluster — mesma lógica do backend.
@@ -154,6 +56,7 @@ function walk(store, key, base, noise, mn = 0, mx = null, nd = 1) {
   return Math.round(v * f) / f
 }
 const shortHost = (node) => node.host.split(':')[0].split('.')[0]
+
 
 const AGENT_LATEST = '12.0.28'
 const RESYNC_SECONDS = 25
@@ -201,6 +104,48 @@ function expireResyncs() {
     }
   }))
 }
+
+// Rolling upgrade: config servers, secundários, primários, mongos — um por vez.
+const UPGRADE_ORDER = { 'Config Server': 0, SECONDARY: 1, 'Shard PRIMARY': 2, PRIMARY: 2, Standalone: 2, mongos: 3 }
+function checkUpgrade(c, target) {
+  if (c.upgrade) throw new ApiError(`Rolling upgrade para ${c.upgrade.target} já está em andamento em ${c.name}; aguarde concluir.`)
+  if (c.nodes.some((n) => n.resync_until)) throw new ApiError(`${c.name} tem um nó em initial sync; aguarde terminar antes do upgrade.`)
+  checkKnownVersion(target)
+  const d = cmpV(target, c.version)
+  if (d === 0) throw new ApiError(`${c.name} já está na versão ${target}.`)
+  if (d < 0) throw new ApiError('Downgrade não é suportado nesta demo (no Ops Manager exige featureCompatibilityVersion compatível).')
+  const sCur = series(c.version), sNew = series(target)
+  if (RELEASE_SERIES.includes(sCur) && RELEASE_SERIES.indexOf(sNew) - RELEASE_SERIES.indexOf(sCur) > 1) {
+    throw new ApiError(`Upgrade de ${sCur} para ${sNew} pula uma release series: passe por ${RELEASE_SERIES[RELEASE_SERIES.indexOf(sCur) + 1]} antes.`)
+  }
+}
+function startUpgrade(c, target, by, source) {
+  checkUpgrade(c, target)
+  const order = c.nodes.map((_, i) => i).sort((a, b) => (UPGRADE_ORDER[c.nodes[a].role] ?? 2) - (UPGRADE_ORDER[c.nodes[b].role] ?? 2))
+  c.upgrade = { from: c.version, target, order, done: 0, total: order.length, seconds_per_node: UPGRADE_SECONDS_PER_NODE, by, source, _startedAt: Date.now() }
+  c.nodes[order[0]].state = 'UPGRADING'
+  logActivity(by, 'UPGRADE', c.name, `Rolling upgrade ${c.version} → ${target} iniciado (${order.length} processo(s), um por vez)`)
+  return order.length * UPGRADE_SECONDS_PER_NODE
+}
+function advanceUpgrades() {
+  const now = Date.now()
+  STATE.clusters.forEach((c) => {
+    const u = c.upgrade
+    if (!u) return
+    const done = Math.min(u.total, Math.floor((now - u._startedAt) / 1000 / u.seconds_per_node))
+    for (let k = u.done; k < done; k++) { const n = c.nodes[u.order[k]]; n.version = u.target; n.state = null }
+    u.done = done
+    if (done < u.total) { c.nodes[u.order[done]].state = 'UPGRADING'; return }
+    c.version = u.target
+    delete c.upgrade
+    STATE.automation_history.unshift({ time: nowStr(), cluster: c.name, change: `Version upgrade ${u.from} → ${u.target} (rolling)`, status: 'success', duration: `${u.total * u.seconds_per_node}s (simulado)`, by: u.by })
+    logActivity('System', 'UPGRADE', c.name, `Rolling upgrade concluído: ${u.from} → ${u.target}`)
+  })
+}
+const advanceAll = () => { expireResyncs(); advanceUpgrades(); updateRestoreJobs() }
+const busyReason = (c) => (c.upgrade ? `rolling upgrade para ${c.upgrade.target} em andamento` : null)
+const requireCluster = (id) => { const c = findCluster(id); if (!c) throw new ApiError('Cluster não encontrado', 404); return c }
+
 // O alerta que o banner deve mostrar: o mais severo ainda não reconhecido.
 function topAlert() {
   const ordem = { crit: 0, warn: 1, info: 2 }
@@ -215,7 +160,36 @@ function expireAcks() {
   STATE.alerts_open.forEach((a) => { if (a.acked_until && now >= a.acked_until) { delete a.acked_until; a.acked = false } })
 }
 
-// Operações vivas por cluster: persistem entre polls para o Kill valer.
+// ── Backup / PIT ──
+const sizeGb = (s) => { const v = parseFloat(String(s).split(' ')[0]); return Number.isFinite(v) ? v : 0 }
+function pitWindows() {
+  const w = {}
+  STATE.snapshots.forEach((s) => {
+    const ts = parseTs(s.created)
+    if (!ts) return
+    const cur = w[s.cluster] || (w[s.cluster] = { from: ts, to: ts, snapshots: 0, latest_size: s.size })
+    cur.snapshots++
+    if (ts < cur.from) cur.from = ts
+    if (ts >= cur.to) { cur.to = ts; cur.latest_size = s.size }
+  })
+  return w
+}
+const publicWindows = () => Object.fromEntries(Object.entries(pitWindows()).map(([k, v]) => [k, { from: fmtTs(v.from), to: fmtTs(v.to), snapshots: v.snapshots, latest_size: v.latest_size }]))
+const activeRestore = (name) => STATE.restore_jobs.find((j) => (j.status === 'queued' || j.status === 'running') && (j.cluster === name || j.target_cluster === name))
+const nextNum = (arr, fallback) => (arr.length ? Math.max(...arr.map((x) => parseInt(String(x.id).split('-')[1], 10) || 0)) : fallback) + 1
+// Normaliza IPv4/CIDR para comparar redes (10.0.0.1/16 == 10.0.0.0/16). IPv6 cai na comparação literal.
+function netKey(v) {
+  const [ip, bits] = String(v).split('/')
+  const parts = ip.split('.')
+  if (parts.length !== 4 || parts.some((p) => !/^\d{1,3}$/.test(p) || +p > 255)) return null
+  const len = bits === undefined ? 32 : (/^\d{1,2}$/.test(bits) ? +bits : NaN)
+  if (!(len >= 0 && len <= 32)) return null
+  const n = parts.reduce((acc, p) => acc * 256 + +p, 0)
+  const block = 2 ** (32 - len)
+  return `${n - (n % block)}/${len}`
+}
+const validNetwork = (v) => netKey(v) !== null || /^[0-9a-fA-F:]+(\/\d{1,3})?$/.test(String(v)) && String(v).includes(':')
+const sameNetwork = (a, b) => a === b || (netKey(a) !== null && netKey(a) === netKey(b))
 const RT_OPS = {}
 const RT_NS = ['app_db.orders', 'app_db.sessions', 'analytics.events', 'app_db.products', 'app_db.users']
 const RT_KINDS = ['query', 'insert', 'update', 'getmore', 'command', 'aggregate']
@@ -279,94 +253,151 @@ function flatten(points) {
 const rand = (a, b) => Math.floor(a + Math.random() * (b - a))
 const choice = (arr) => arr[rand(0, arr.length)]
 
+
 export const MockAPI = {
-  meta: () => ok({ org: STATE.org, project: STATE.project }),
+  meta: () => ok({ org: STATE.org, project: STATE.project, simulated: true }),
 
-  dashboard: () => ok({
-    total_clusters: STATE.clusters.length,
-    healthy: STATE.clusters.filter((c) => c.status === 'healthy').length,
-    warning: STATE.clusters.filter((c) => c.status === 'warning' || c.status === 'critical').length,
-    hosts: STATE.clusters.reduce((a, c) => a + c.nodes.length, 0),
-    open_alerts: STATE.alerts_open.length,
-    top_alert: topAlert(),
-    snapshots: STATE.snapshots.length + STATE.snapshot_base,
-    clusters: STATE.clusters,
-    activity: STATE.activity.slice(0, 3),
-  }),
+  dashboard: () => {
+    advanceAll()
+    return ok({
+      total_clusters: STATE.clusters.length,
+      healthy: STATE.clusters.filter((c) => c.status === 'healthy').length,
+      warning: STATE.clusters.filter((c) => c.status === 'warning' || c.status === 'critical').length,
+      hosts: STATE.clusters.reduce((a, c) => a + c.nodes.length, 0),
+      open_alerts: STATE.alerts_open.length,
+      top_alert: topAlert(),
+      snapshots: STATE.snapshots.length + STATE.snapshot_base,
+      clusters: STATE.clusters,
+      activity: STATE.activity.slice(0, 3),
+    })
+  },
 
-  clusters: () => { expireResyncs(); return ok(STATE.clusters) },
-  createCluster: (b) => {
-    const nome = (b.name || '').trim()
-    if (!nome) return fail('Nome do cluster é obrigatório.')
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(nome)) return fail('Nome inválido: use letras, números, ponto, hífen ou underscore (até 64).')
-    if (b.members !== undefined && !(b.members >= 1 && b.members <= 12)) return fail('Número de nós deve estar entre 1 e 12.')
-    b = { ...b, name: nome }
-    if (findCluster(b.name)) return Promise.reject({ response: { data: { detail: `Cluster "${b.name}" já existe.` } } })
-    const typeKey = { 'Replica Set': 'rs', 'Sharded Cluster': 'sharded', Standalone: 'standalone' }[b.type] || 'rs'
-    const members = typeKey === 'standalone' ? 1 : (b.members || 3)
-    const nodes = Array.from({ length: members }, (_, i) => ({
-      host: `${b.name}-node-0${i + 1}.mongodb-brazil.internal:${b.port || '27017'}`,
+  clusters: () => { advanceAll(); return ok(STATE.clusters) },
+  createCluster: (b) => run(() => {
+    const nome = String(b.name || '').trim()
+    if (!nome) throw new ApiError('Nome do cluster é obrigatório.', 422)
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(nome)) throw new ApiError('Nome inválido: use letras, números, ponto, hífen ou underscore (até 64).', 422)
+    if (!['Replica Set', 'Sharded Cluster', 'Standalone'].includes(b.type)) throw new ApiError('Tipo de deployment inválido.', 422)
+    const members = b.members === undefined ? 3 : Number(b.members)
+    if (!(Number.isInteger(members) && members >= 1 && members <= 12)) throw new ApiError('Número de nós deve estar entre 1 e 12.', 422)
+    const port = b.port === undefined ? 27017 : Number(b.port)
+    if (!(Number.isInteger(port) && port >= 1 && port <= 65535)) throw new ApiError('Porta inválida.', 422)
+    const version = b.version || '7.0.5'
+    checkKnownVersion(version)
+    if (findCluster(nome)) throw new ApiError(`Cluster "${nome}" já existe.`)
+    const typeKey = { 'Replica Set': 'rs', 'Sharded Cluster': 'sharded', Standalone: 'standalone' }[b.type]
+    const n = typeKey === 'standalone' ? 1 : members
+    const nodes = Array.from({ length: n }, (_, i) => ({
+      host: `${nome}-node-0${i + 1}.mongodb-brazil.internal:${port}`,
       role: typeKey === 'standalone' ? 'Standalone' : (i === 0 ? 'PRIMARY' : 'SECONDARY'),
-      version: b.version || '7.0.5', status: 'green', uptime: 'just now', conn: 0, disk: 5, lag: i === 0 ? '—' : '0.0s',
+      version, status: 'green', uptime: 'just now', conn: 0, disk: 5, lag: i === 0 ? '—' : '0.0s',
     }))
-    const cluster = { id: b.name, type: typeKey, name: b.name, version: b.version || '7.0.5', status: 'healthy', nodes }
+    const cluster = { id: nome, type: typeKey, name: nome, version, status: 'healthy', nodes }
     STATE.clusters.push(cluster)
     registerAgents(cluster)
-    logActivity('admin@mongodb-brazil.com', 'CREATE', b.name, `Provisioned ${b.type} with ${members} node(s)`)
-    return ok(cluster)
-  },
-  deleteCluster: (id) => {
-    const c = findCluster(id)
-    if (!c) return fail('Cluster não encontrado')
+    logActivity(ADMIN, 'CREATE', nome, `Provisioned ${b.type} with ${n} node(s)`)
+    return cluster
+  }),
+  deleteCluster: (id) => run(() => {
+    const c = requireCluster(id)
     STATE.clusters.splice(STATE.clusters.indexOf(c), 1)
     dropAgents(c)
     const fechados = closeAlertsFor(c.name)
-    logActivity('admin@mongodb-brazil.com', 'TERMINATE', id, 'Cluster terminated')
+    logActivity(ADMIN, 'TERMINATE', id, 'Cluster terminated')
     if (fechados) logActivity('System', 'ALERT CLOSE', id, `${fechados} alerta(s) fechado(s) junto com o cluster`)
-    return ok({ ok: true, agents_removed: true, alerts_closed: fechados })
-  },
-  editCluster: (id, b) => { const c = findCluster(id); if (c && b.version) { c.version = b.version; c.nodes.forEach((n) => (n.version = b.version)) } return ok(c) },
-  addNode: (id, b) => { const c = findCluster(id); const host = b.host || `${c.name}-node-0${c.nodes.length + 1}.mongodb-brazil.internal:27017`; c.nodes.push({ host, role: 'SECONDARY', version: c.version, status: 'green', uptime: 'just now', conn: 0, disk: 3, lag: '0.0s' }); registerAgents(c); logActivity('admin@mongodb-brazil.com', 'ADD NODE', c.name, `Nó ${host} adicionado ao replica set`); return ok(c) },
-  stepDown: (id, idx) => {
-    const c = findCluster(id)
-    if (!c || idx < 0 || idx >= c.nodes.length) return fail('Nó não encontrado')
+    return { ok: true, agents_removed: true, alerts_closed: fechados }
+  }),
+  editCluster: (id, b) => run(() => {
+    advanceAll()
+    const c = requireCluster(id)
+    if (b.version) startUpgrade(c, b.version, ADMIN, 'edit')
+    const changes = Object.fromEntries(['oplog', 'cache', 'log_level'].filter((k) => b[k]).map((k) => [k, b[k]]))
+    if (Object.keys(changes).length) {
+      c.config = { ...(c.config || {}), ...changes }
+      logActivity(ADMIN, 'EDIT', id, 'Config applied via Automation: ' + Object.entries(changes).map(([k, v]) => `${k}=${v}`).join(', '))
+    }
+    return c
+  }),
+  addNode: (id, b = {}) => run(() => {
+    advanceAll()
+    const c = requireCluster(id)
+    if (c.type !== 'rs') throw new ApiError('Add Node vale só para replica set (sharded: adicione um shard; standalone: converta em replica set).')
+    if (busyReason(c)) throw new ApiError(`Não é possível adicionar nó: ${busyReason(c)}.`)
+    if (c.nodes.length >= 12) throw new ApiError('O deployment já atingiu o limite de 12 nós da demo.')
+    if (b.host && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,239}:\d{1,5}$/.test(b.host)) throw new ApiError('host deve usar o formato hostname:porta', 422)
+    const host = b.host || `${c.name}-node-0${c.nodes.length + 1}.mongodb-brazil.internal:27017`
+    if (c.nodes.some((n) => n.host === host)) throw new ApiError('Host já pertence ao deployment.')
+    c.nodes.push({ host, role: 'SECONDARY', version: c.version, status: 'green', uptime: 'just now', conn: 0, disk: 3, lag: '0.0s' })
+    registerAgents(c)
+    logActivity(ADMIN, 'ADD NODE', c.name, `Nó ${host} adicionado ao replica set`)
+    return c
+  }),
+  stepDown: (id, idx) => run(() => {
+    advanceAll()
+    const c = requireCluster(id)
+    if (!(idx >= 0 && idx < c.nodes.length)) throw new ApiError('Nó não encontrado', 404)
+    if (busyReason(c)) throw new ApiError(`Step down bloqueado: ${busyReason(c)}.`)
     const oldP = c.nodes.find((n) => n.role === 'PRIMARY')
-    const newP = c.nodes.find((n, i) => i !== idx && n.role === 'SECONDARY')
-    if (!oldP || !newP) return fail('Step down exige um PRIMARY e ao menos um SECONDARY elegível.')
+    const newP = c.nodes.find((n, i) => i !== idx && n.role === 'SECONDARY' && !n.resync_until)
+    if (!oldP || !newP) throw new ApiError('Step down exige um PRIMARY e ao menos um SECONDARY elegível.')
     oldP.role = 'SECONDARY'; newP.role = 'PRIMARY'
     oldP.lag = '0.0s'; newP.lag = '—'
-    logActivity('admin@mongodb-brazil.com', 'STEP DOWN', c.name, `Novo PRIMARY: ${newP.host}`)
-    return ok({ new_primary: newP.host, cluster: c })
-  },
-  resyncNode: (id, idx) => {
-    const c = findCluster(id)
-    if (!c || idx < 0 || idx >= c.nodes.length) return fail('Nó não encontrado')
+    logActivity(ADMIN, 'STEP DOWN', c.name, `Novo PRIMARY: ${newP.host}`)
+    return { new_primary: newP.host, cluster: c }
+  }),
+  resyncNode: (id, idx) => run(() => {
+    advanceAll()
+    const c = requireCluster(id)
+    if (!(idx >= 0 && idx < c.nodes.length)) throw new ApiError('Nó não encontrado', 404)
+    if (busyReason(c)) throw new ApiError(`Resync bloqueado: ${busyReason(c)}.`)
     const n = c.nodes[idx]
-    if (n.role === 'PRIMARY') return fail('Faça step down antes de ressincronizar o PRIMARY.')
+    if (n.role === 'PRIMARY') throw new ApiError('Faça step down antes de ressincronizar o PRIMARY.')
+    if (n.role !== 'SECONDARY') throw new ApiError(`Resync só se aplica a membro SECONDARY de replica set (este nó é ${n.role}).`)
+    if (n.resync_until) throw new ApiError('Este nó já está em initial sync.')
     n.status = 'yellow'; n.state = 'STARTUP2'; n.lag = 'sync'
     n.resync_until = Date.now() + RESYNC_SECONDS * 1000
-    logActivity('admin@mongodb-brazil.com', 'RESYNC', c.name, `Initial sync iniciado em ${n.host}`)
-    return ok({ ok: true, seconds: RESYNC_SECONDS, cluster: c })
-  },
-  upgradeCluster: (id, b) => { const c = findCluster(id); c.version = b.target_version; c.nodes.forEach((n) => (n.version = b.target_version)); logActivity('System', 'UPGRADE', id, `Rolling upgrade to ${b.target_version}`); return ok(c) },
+    logActivity(ADMIN, 'RESYNC', c.name, `Initial sync iniciado em ${n.host}`)
+    return { ok: true, seconds: RESYNC_SECONDS, cluster: c }
+  }),
+  upgradeCluster: (id, b) => run(() => {
+    advanceAll()
+    const c = requireCluster(id)
+    if (!VERSION_RE.test(String(b?.target_version || ''))) throw new ApiError('Versão inválida.', 422)
+    const seconds = startUpgrade(c, b.target_version, ADMIN, 'deployments')
+    return { ok: true, seconds, cluster: c }
+  }),
 
-  automation: () => ok({ agents_active: STATE.agents.length, pending: STATE.pending_changes, history: STATE.automation_history }),
-  applyPending: (pid) => {
+  automation: () => { advanceAll(); return ok({ agents_active: STATE.agents.length, pending: STATE.pending_changes, history: STATE.automation_history }) },
+  applyPending: (pid) => run(() => {
+    advanceAll()
     const pc = STATE.pending_changes.find((p) => p.id === pid)
-    if (pc) {
-      STATE.pending_changes.splice(STATE.pending_changes.indexOf(pc), 1)
-      STATE.automation_history.unshift({ time: 'agora', cluster: pc.cluster, change: pc.desc, status: 'success', duration: `${rand(2, 9)}m ${rand(0, 59)}s`, by: 'admin' })
+    if (!pc) throw new ApiError('Mudança não encontrada', 404)
+    const c = findCluster(pc.cluster)
+    if (!c) throw new ApiError(`Cluster "${pc.cluster}" não existe mais; descarte a mudança.`)
+    let seconds = 0
+    if (pc.target_version) {
+      seconds = startUpgrade(c, pc.target_version, pc.by || ADMIN, 'automation')
+    } else {
+      c.config = { ...(c.config || {}), ...(pc.config || {}) }
+      STATE.automation_history.unshift({ time: nowStr(), cluster: pc.cluster, change: pc.desc, status: 'success', duration: 'aplicado (simulado)', by: 'admin' })
+      logActivity(ADMIN, 'EDIT', pc.cluster, `Automation aplicou: ${pc.desc}`)
     }
-    return ok({ ok: true, pending: STATE.pending_changes })
-  },
-  discardPending: (pid) => { const pc = STATE.pending_changes.find((p) => p.id === pid); if (pc) STATE.pending_changes.splice(STATE.pending_changes.indexOf(pc), 1); return ok({ ok: true, pending: STATE.pending_changes }) },
+    STATE.pending_changes.splice(STATE.pending_changes.indexOf(pc), 1)
+    return { ok: true, pending: STATE.pending_changes, rolling: !!seconds, seconds }
+  }),
+  discardPending: (pid) => run(() => {
+    const pc = STATE.pending_changes.find((p) => p.id === pid)
+    if (!pc) throw new ApiError('Mudança não encontrada', 404)
+    STATE.pending_changes.splice(STATE.pending_changes.indexOf(pc), 1)
+    return { ok: true, pending: STATE.pending_changes }
+  }),
   agents: () => {
     const versoes = [...new Set(STATE.agents.map((a) => a.version))].sort()
     return ok({ agents: STATE.agents, version: versoes[0] || STATE.agent_version || '12.0.27', latest: AGENT_LATEST, running: STATE.agents.filter((a) => a.status === 'Running').length })
   },
   agentLogs: (host) => {
     const a = STATE.agents.find((x) => x.host === host)
-    if (!a) return fail('Agent não encontrado')
+    if (!a) return fail('Agent não encontrado', 404)
     const agora = Date.now()
     const linhas = [
       [0, 'INFO', `Agent ${a.version} iniciado em ${a.host}`],
@@ -377,19 +408,20 @@ export const MockAPI = {
       [41, 'WARN', 'Latência do ping acima de 250ms — reavaliando na próxima janela'],
       [58, 'INFO', 'Backup daemon: oplog slice aplicado'],
     ]
-    return ok({ host: a.host, cluster: a.cluster, version: a.version,
+    return ok({ host: a.host, cluster: a.cluster, version: a.version, simulated: true,
       lines: linhas.map(([off, level, msg]) => ({ ts: new Date(agora - off * 1000).toTimeString().slice(0, 8), level, msg })) })
   },
-  upgradeAgents: () => {
+  upgradeAgents: () => run(() => {
+    if (STATE.agents.length && STATE.agents.every((a) => a.version === AGENT_LATEST)) throw new ApiError(`Todos os agents já estão em ${AGENT_LATEST}.`)
     STATE.agents.forEach((a) => (a.version = AGENT_LATEST))
     STATE.agent_version = AGENT_LATEST
-    logActivity('admin@mongodb-brazil.com', 'AGENT UPGRADE', 'Automation', `${STATE.agents.length} agent(s) em ${AGENT_LATEST}`)
-    return ok({ ok: true, version: AGENT_LATEST })
-  },
+    logActivity(ADMIN, 'AGENT UPGRADE', 'Automation', `${STATE.agents.length} agent(s) em ${AGENT_LATEST}`)
+    return { ok: true, version: AGENT_LATEST }
+  }),
 
   metrics: (id) => {
     const c = findCluster(id)
-    if (!c) return Promise.reject(new Error('Cluster não encontrado'))
+    if (!c) return fail('Cluster não encontrado', 404)
     delete WALKS[id]
     const now = Date.now()
     const points = Array.from({ length: WINDOW }, (_, k) => ({ ...point(c), t: now - (WINDOW - 1 - k) * 1000 }))
@@ -397,15 +429,15 @@ export const MockAPI = {
   },
   metricsTick: (id) => {
     const c = findCluster(id)
-    if (!c) return Promise.reject(new Error('Cluster não encontrado'))
+    if (!c) return fail('Cluster não encontrado', 404)
     return ok(point(c))
   },
   realtime: (id) => {
     const c = findCluster(id)
-    if (!c) return fail('Cluster não encontrado')
+    if (!c) return fail('Cluster não encontrado', 404)
     const ops = (RT_OPS[id] = RT_OPS[id] || Array.from({ length: 3 }, rtNewOp))
     ops.forEach((o) => { o.secs = Math.round((o.secs + 0.3 + Math.random() * 0.7) * 100) / 100 })
-    let vivos = ops.filter((o) => o.secs < 4)
+    const vivos = ops.filter((o) => o.secs < 4)
     const alvo = rand(2, 5)
     while (vivos.length < alvo) vivos.push(rtNewOp())
     RT_OPS[id] = vivos
@@ -426,14 +458,14 @@ export const MockAPI = {
       hottest,
     })
   },
-  killOp: (id, opid) => {
+  killOp: (id, opid) => run(() => {
     const ops = RT_OPS[id] || []
     const alvo = ops.find((o) => o.opid === opid)
-    if (!alvo) return fail('Operação já terminou ou não existe.')
+    if (!alvo) throw new ApiError('Operação já terminou ou não existe.', 404)
     RT_OPS[id] = ops.filter((o) => o.opid !== opid)
-    logActivity('admin@mongodb-brazil.com', 'KILL OP', id, `db.killOp(${opid}) em ${alvo.ns}`)
-    return ok({ ok: true, killed: alvo })
-  },
+    logActivity(ADMIN, 'KILL OP', id, `db.killOp(${opid}) em ${alvo.ns}`)
+    return { ok: true, killed: alvo }
+  }),
 
   perfAdvisor: () => {
     // Números sintéticos, recalculados a cada chamada (inclui o "Re-scan" do
@@ -450,52 +482,184 @@ export const MockAPI = {
       collections_scanned: collectionsScanned, simulated: true,
     })
   },
-  createIndex: (idx) => { const removed = STATE.perf_index_suggestions.splice(idx, 1)[0]; return ok({ ok: true, created: removed, remaining: STATE.perf_index_suggestions }) },
+  createIndex: (sid) => run(() => {
+    const s = STATE.perf_index_suggestions.find((x) => x.id === sid)
+    if (!s) throw new ApiError('Sugestão não encontrada (o índice pode já ter sido criado).', 404)
+    STATE.perf_index_suggestions.splice(STATE.perf_index_suggestions.indexOf(s), 1)
+    logActivity(ADMIN, 'CREATE INDEX', s.ns, `Rolling index build ${s.idx}`)
+    return { ok: true, created: s, remaining: STATE.perf_index_suggestions }
+  }),
 
-  backup: () => ok({ protected: STATE.clusters.filter((c) => c.type !== 'standalone').length, total_snapshots: STATE.snapshots.length + STATE.snapshot_base, snapshots: STATE.snapshots }),
-  takeSnapshot: (cluster) => { if (!STATE.clusters.some((c) => c.name === cluster)) return fail(`Cluster "${cluster}" não encontrado.`); const lastNum = STATE.snapshots.length ? parseInt(STATE.snapshots[0].id.split('-')[1]) : 142; const snap = { id: `snap-${String(lastNum + 1).padStart(5, '0')}`, cluster, type: 'Manual', created: 'agora', size: '42 GB', expires: '2024-02-15', status: 'ready' }; STATE.snapshots.unshift(snap); return ok(snap) },
-  deleteSnapshot: (sid) => { const s = STATE.snapshots.find((x) => x.id === sid); if (s) STATE.snapshots.splice(STATE.snapshots.indexOf(s), 1); return ok({ ok: true }) },
+  backup: () => ok({
+    protected: STATE.clusters.filter((c) => c.type !== 'standalone').length,
+    total_snapshots: STATE.snapshots.length + STATE.snapshot_base,
+    snapshots: STATE.snapshots,
+    storage_gb: Math.round(STATE.snapshots.reduce((t, s) => t + sizeGb(s.size), 0) * 10) / 10,
+    pit_windows: publicWindows(),
+    simulated: true,
+  }),
+  takeSnapshot: (cluster) => run(() => {
+    const c = STATE.clusters.find((x) => x.name === cluster)
+    if (!c) throw new ApiError(`Cluster "${String(cluster).slice(0, 64)}" não encontrado.`, 404)
+    if (c.type === 'standalone') throw new ApiError('Backup vale para replica set e sharded cluster: standalone não tem oplog (sem backup contínuo nem PIT). Converta em replica set de um membro.')
+    const now = new Date(Date.now())
+    const previous = STATE.snapshots.find((s) => s.cluster === cluster)
+    const snap = {
+      id: `snap-${String(nextNum(STATE.snapshots, 142)).padStart(5, '0')}`, cluster, type: 'Manual',
+      created: fmtTs(now), size: previous ? previous.size : '1 GB',
+      expires: fmtTs(new Date(now.getTime() + 30 * 86400000)).slice(0, 10), status: 'ready',
+    }
+    STATE.snapshots.unshift(snap)
+    logActivity(ADMIN, 'SNAPSHOT', cluster, `Snapshot manual ${snap.id} concluído`)
+    return snap
+  }),
+  deleteSnapshot: (sid) => run(() => {
+    const s = STATE.snapshots.find((x) => x.id === sid)
+    if (!s) throw new ApiError('Snapshot não encontrado', 404)
+    STATE.snapshots.splice(STATE.snapshots.indexOf(s), 1)
+    logActivity(ADMIN, 'SNAPSHOT DELETE', s.cluster, `Snapshot ${sid} removido`)
+    return { ok: true }
+  }),
 
   restoreJobs: () => { updateRestoreJobs(); return ok(STATE.restore_jobs.map(publicJob)) },
-  startRestore: (b) => {
-    if (!STATE.clusters.some((x) => x.name === b.cluster)) return fail(`Cluster "${b.cluster}" não encontrado.`)
-    const lastNum = STATE.restore_jobs.length ? parseInt(STATE.restore_jobs[0].id.split('-')[1]) : 142
+  startRestore: (b) => run(() => {
+    updateRestoreJobs()
+    const target = b.target || 'same'
+    if (b.point && String(b.point).length > 32) throw new ApiError('Ponto de restore inválido.', 422)
+    if (b.snapshot_id !== undefined && b.snapshot_id !== null && !/^snap-\d{1,8}$/.test(String(b.snapshot_id))) throw new ApiError('snapshot_id inválido.', 422)
+    const c = findCluster(b.cluster)
+    if (!c) throw new ApiError(`Cluster "${b.cluster}" não encontrado.`, 404)
+    if (c.type === 'standalone') throw new ApiError('Standalone não tem oplog nem backup contínuo; não há snapshot para restaurar.')
+    const window = pitWindows()[c.name]
+    if (!window) throw new ApiError(`${c.name} não tem nenhum snapshot: faça um backup antes de restaurar.`)
+    let targetCluster = null
+    if (target !== 'same' && target !== 'download') {
+      targetCluster = findCluster(target)
+      if (!targetCluster) throw new ApiError(`Cluster de destino "${target}" não encontrado.`, 404)
+      if (targetCluster.id === c.id) targetCluster = null
+      else if (targetCluster.type !== c.type) throw new ApiError('O destino precisa ter a mesma topologia da origem (replica set → replica set, sharded → sharded).')
+    }
+    const busy = activeRestore(c.name) || (targetCluster && activeRestore(targetCluster.name))
+    if (busy) throw new ApiError(`Já existe um restore em andamento (${busy.id}); aguarde concluir.`)
+    let kind, point
+    if (b.snapshot_id) {
+      const snap = STATE.snapshots.find((s) => s.id === b.snapshot_id)
+      if (!snap || snap.cluster !== c.name) throw new ApiError(`Snapshot ${b.snapshot_id} não encontrado para ${c.name}.`, 404)
+      kind = 'Snapshot'; point = snap.created
+    } else {
+      if (!b.point) throw new ApiError('Informe o ponto de restore (ou um snapshot_id).', 422)
+      const ts = parseTs(b.point)
+      if (!ts) throw new ApiError('Ponto de restore inválido: use AAAA-MM-DDTHH:MM (UTC).', 422)
+      if (ts < window.from || ts > window.to) throw new ApiError(`Ponto fora da janela de PIT de ${c.name}: ${fmtTs(window.from)} → ${fmtTs(window.to)} UTC.`, 422)
+      kind = 'PIT'; point = fmtTs(ts).replace(' ', 'T')
+    }
     const now = Date.now()
     const job = {
-      id: `rst-${String(lastNum + 1).padStart(5, '0')}`, cluster: b.cluster, type: 'PIT',
-      point: b.point, target: b.target || 'same', status: 'queued',
-      started: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      id: `rst-${String(nextNum(STATE.restore_jobs, 142)).padStart(5, '0')}`, cluster: c.name, type: kind,
+      point, target, status: 'queued', started: nowStr(),
       _runningAt: now + RESTORE_RUNNING_SECONDS * 1000, _doneAt: now + RESTORE_TOTAL_SECONDS * 1000,
     }
+    if (targetCluster) job.target_cluster = targetCluster.name
     STATE.restore_jobs.unshift(job)
-    logActivity('admin@mongodb-brazil.com', 'RESTORE', b.cluster, `Point-in-time restore iniciado (${b.point} → ${b.target || 'same'})`)
-    return ok({ ok: true, seconds: RESTORE_TOTAL_SECONDS, job: publicJob(job) })
-  },
+    const label = kind === 'PIT' ? 'Point-in-time' : `Snapshot ${b.snapshot_id}`
+    logActivity(ADMIN, 'RESTORE', c.name, `${label} restore iniciado (${point} → ${target})`)
+    return { ok: true, seconds: RESTORE_TOTAL_SECONDS, job: publicJob(job) }
+  }),
 
   alerts: () => { expireAcks(); return ok({ open: STATE.alerts_open, closed_count: STATE.alerts_closed_count, configs: STATE.alert_configs }) },
-  acknowledgeAlert: (aid) => {
+  acknowledgeAlert: (aid) => run(() => {
     const a = STATE.alerts_open.find((x) => x.id === aid)
-    if (!a) return fail('Alerta não encontrado')
-    if (a.acked) return fail('Alerta já reconhecido.')
-    a.acked = true; a.acked_until = Date.now() + ACK_MINUTES * 60000; a.acked_by = 'admin@mongodb-brazil.com'
-    logActivity('admin@mongodb-brazil.com', 'ALERT ACK', a.target, `${a.title} silenciado por ${ACK_MINUTES}min`)
-    return ok({ ok: true, alert: a, minutes: ACK_MINUTES })
-  },
-  resolveAlert: (aid) => { const a = STATE.alerts_open.find((x) => x.id === aid); if (!a) return fail('Alerta não encontrado'); logActivity('admin@mongodb-brazil.com', 'ALERT RESOLVE', a.target, a.title); if (a) { STATE.alerts_open.splice(STATE.alerts_open.indexOf(a), 1); STATE.alerts_closed_count++ } return ok({ ok: true, open: STATE.alerts_open, closed_count: STATE.alerts_closed_count }) },
-  addAlertConfig: (b) => { const cfg = { cond: b.cond, target: b.target, thresh: b.thresh, notify: b.notify || 'Email', on: true }; STATE.alert_configs.unshift(cfg); return ok(cfg) },
-  deleteAlertConfig: (idx) => { STATE.alert_configs.splice(idx, 1); return ok({ ok: true }) },
+    if (!a) throw new ApiError('Alerta não encontrado', 404)
+    if (a.acked) throw new ApiError('Alerta já reconhecido.')
+    a.acked = true; a.acked_until = Date.now() + ACK_MINUTES * 60000; a.acked_by = ADMIN
+    logActivity(ADMIN, 'ALERT ACK', a.target, `${a.title} silenciado por ${ACK_MINUTES}min`)
+    return { ok: true, alert: a, minutes: ACK_MINUTES }
+  }),
+  resolveAlert: (aid) => run(() => {
+    const a = STATE.alerts_open.find((x) => x.id === aid)
+    if (!a) throw new ApiError('Alerta não encontrado', 404)
+    STATE.alerts_open.splice(STATE.alerts_open.indexOf(a), 1)
+    STATE.alerts_closed_count++
+    logActivity(ADMIN, 'ALERT RESOLVE', a.target, a.title)
+    return { ok: true, open: STATE.alerts_open, closed_count: STATE.alerts_closed_count }
+  }),
+  addAlertConfig: (b) => run(() => {
+    const cond = String(b.cond || '').trim(), target = String(b.target || '').trim(), thresh = String(b.thresh || '').trim()
+    const notify = String(b.notify || 'Email').trim()
+    if (!cond || !target || !thresh || cond.length > 160 || target.length > 128 || thresh.length > 64 || notify.length > 64) throw new ApiError('Preencha condição, alvo e limite (dentro dos tamanhos máximos).', 422)
+    const key = [cond, target, thresh].join('|').toLowerCase()
+    if (STATE.alert_configs.some((c) => [c.cond, c.target, c.thresh].join('|').toLowerCase() === key)) throw new ApiError('Já existe uma configuração com a mesma condição, alvo e limite.')
+    const cfg = { id: `ac-${nextNum(STATE.alert_configs, 0)}`, cond, target, thresh, notify, on: true }
+    STATE.alert_configs.unshift(cfg)
+    return cfg
+  }),
+  deleteAlertConfig: (id) => run(() => {
+    const cfg = STATE.alert_configs.find((c) => c.id === id)
+    if (!cfg) throw new ApiError('Config não encontrada', 404)
+    STATE.alert_configs.splice(STATE.alert_configs.indexOf(cfg), 1)
+    return { ok: true }
+  }),
 
   users: () => ok(STATE.users),
-  addUser: (b) => { const nome = (b.name || '').trim(); if (!nome) return fail('Username é obrigatório.'); if (STATE.users.some((x) => x.name === nome)) return fail(`Usuário "${nome}" já existe.`); b = { ...b, name: nome }; const u = { name: b.name, auth: b.auth, roles: [b.role], db: b.role.includes('@') ? b.role.split('@')[1] : 'admin', created: 'just now', status: 'active' }; STATE.users.unshift(u); logActivity('admin@mongodb-brazil.com', 'USER CREATE', 'Security', `New user: ${b.name}`); return ok(u) },
-  deleteUser: (name) => { const u = STATE.users.find((x) => x.name === name); if (u) STATE.users.splice(STATE.users.indexOf(u), 1); return ok({ ok: true }) },
+  addUser: (b) => run(() => {
+    const nome = String(b.name || '').trim()
+    if (!nome) throw new ApiError('Username é obrigatório.', 422)
+    if (nome.length > 128 || !/^[A-Za-z0-9._@-]+$/.test(nome)) throw new ApiError('Username inválido.', 422)
+    if (STATE.users.some((x) => x.name === nome)) throw new ApiError(`Usuário "${nome}" já existe.`)
+    const role = b.role || 'read@analytics'
+    const u = { name: nome, auth: b.auth || 'SCRAM-SHA-256', roles: [role], db: role.includes('@') ? role.split('@').pop() : 'admin', created: 'just now', status: 'active' }
+    STATE.users.unshift(u)
+    logActivity(ADMIN, 'USER CREATE', 'Security', `New user: ${nome}`)
+    return u
+  }),
+  deleteUser: (name) => run(() => {
+    const u = STATE.users.find((x) => x.name === name)
+    if (!u) throw new ApiError('Usuário não encontrado', 404)
+    STATE.users.splice(STATE.users.indexOf(u), 1)
+    return { ok: true }
+  }),
   roles: () => ok(STATE.roles),
-  addRole: (b) => { const r = { name: b.name, priv: b.priv || 'find', inherits: b.inherits || '(none)', users: 0 }; STATE.roles.unshift(r); return ok(r) },
-  deleteRole: (idx) => { STATE.roles.splice(idx, 1); return ok({ ok: true }) },
+  addRole: (b) => run(() => {
+    const name = String(b.name || '')
+    if (!name || name.length > 128 || !/^[A-Za-z0-9._-]+$/.test(name)) throw new ApiError('Nome de role inválido.', 422)
+    if (STATE.roles.some((r) => r.name === name)) throw new ApiError(`Role "${name}" já existe.`)
+    const r = { name, priv: b.priv || 'find', inherits: b.inherits || '(none)', users: 0 }
+    STATE.roles.unshift(r)
+    return r
+  }),
+  deleteRole: (name) => run(() => {
+    const r = STATE.roles.find((x) => x.name === name)
+    if (!r) throw new ApiError('Role não encontrada', 404)
+    STATE.roles.splice(STATE.roles.indexOf(r), 1)
+    return { ok: true }
+  }),
   ips: () => ok(STATE.ip_access_list),
-  addIp: (b) => { const e = { ip: b.ip, comment: b.comment || '—', added: 'just now' }; STATE.ip_access_list.push(e); return ok(e) },
-  deleteIp: (idx) => { STATE.ip_access_list.splice(idx, 1); return ok({ ok: true }) },
+  addIp: (b) => run(() => {
+    if (!validNetwork(b.ip) || String(b.ip).length > 64) throw new ApiError('IP ou CIDR inválido', 422)
+    if (String(b.comment || '').length > 240) throw new ApiError('Comentário longo demais.', 422)
+    if (STATE.ip_access_list.some((e) => sameNetwork(e.ip, b.ip))) throw new ApiError(`${b.ip} já está na IP access list.`)
+    const e = { ip: b.ip, comment: b.comment || '—', added: 'just now' }
+    STATE.ip_access_list.push(e)
+    return e
+  }),
+  deleteIp: (ip) => run(() => {
+    const e = STATE.ip_access_list.find((x) => sameNetwork(x.ip, ip))
+    if (!e) throw new ApiError('IP não encontrado', 404)
+    STATE.ip_access_list.splice(STATE.ip_access_list.indexOf(e), 1)
+    return { ok: true }
+  }),
   audit: () => ok(STATE.audit_events),
 
   activity: () => ok(STATE.activity),
-  reset: () => { STATE = seed(); return ok({ ok: true }) },
+  // Reset completo: estado, séries de métricas, operações vivas e último scan.
+  reset: () => {
+    STATE = seed()
+    Object.keys(WALKS).forEach((k) => delete WALKS[k])
+    Object.keys(RT_OPS).forEach((k) => delete RT_OPS[k])
+    perfLastAvgMs = null
+    return ok({ ok: true })
+  },
+  // Só para testes de paridade (frontend/tests/mock_parity.mjs).
+  _debugState: () => ({ state: STATE, walks: WALKS, rt: RT_OPS, perf: perfLastAvgMs }),
+  _seed: seed,
 }
