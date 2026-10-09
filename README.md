@@ -57,7 +57,7 @@ returns everything to that seed, including in-flight upgrades and restores.
 **Publish a new live-demo version:**
 
 ```bash
-./deploy-pages.sh   # static mock build → GitHub Pages
+./deploy-pages.sh   # static mock build → GitHub Pages (new commit on gh-pages, no force-push)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for architecture, endpoints, and manual
