@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 (2026-10-09)
+
+- Restore lifecycle: while a restore job is queued or running, its target refuses terminate, upgrade, add node, step down and resync, its source refuses terminate, and the snapshot in use cannot be deleted (409 with the job id). A rolling upgrade on the target blocks a new restore into it.
+- A restore job whose source or target disappears now ends `failed` with a reason instead of `completed`; the Restore page shows the failed badge and stops polling when no job is active (and only polls while the tab is visible).
+- README: explicit statement that everything is simulated, and a table of the refusals checked against official MongoDB documentation (literal vs inferred, with links). The "Simulação" chip in the top bar links to it.
+
 ## 1.1.0 (2026-10-06)
 
 - Simulation rules aligned with Ops Manager: rolling upgrades (one process at a time, one release series at a time, no downgrade), backup and restore only for replica sets and sharded clusters, restore limited to the PIT window and to one job per source/target, resync only for secondaries, and no election of a member in initial sync.

@@ -77,6 +77,7 @@ Monitoring e ciclo de vida:
 | `POST /api/clusters/{id}/upgrade` | inicia rolling upgrade simulado (`cluster.upgrade` mostra `done/total`) |
 | `GET /api/backup` | snapshots + `pit_windows` por cluster + `storage_gb` (simulado) |
 | `POST /api/restore` | `{cluster, point}` (PIT) ou `{cluster, snapshot_id}`; `target` = `same`, `download` ou cluster de mesma topologia |
+| `DELETE /api/clusters/{id}` | 409 enquanto o cluster é origem ou destino de restore em andamento |
 | `DELETE /api/roles/{name}` · `DELETE /api/security/ip?ip=` · `DELETE /api/alerts/configs/{id}` · `POST /api/perf-advisor/index/{id}` | remoção por chave estável |
 
 As regras de recusa (409/422) estão em `docs/briefing/architecture.md`, seção
