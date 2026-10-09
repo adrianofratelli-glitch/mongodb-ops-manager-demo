@@ -115,6 +115,17 @@ async function demoRun(run) {
   const toasts = await toastText(page)
   check(`${P} restore concorrente recusado com motivo`, /em andamento/.test(toasts), toasts.slice(0, 200))
 
+  // Terminate do destino com restore em andamento: recusado com motivo, cluster continua.
+  await nav(page, 'All Clusters')
+  await page.getByRole('button', { name: 'Terminate' }).first().click()
+  const dlg = page.getByRole('dialog')
+  await dlg.getByRole('textbox').fill('rs-prod-01')
+  await dlg.getByRole('button', { name: 'Terminate' }).click()
+  await page.waitForTimeout(500)
+  const tToasts = await toastText(page)
+  check(`${P} terminate do destino em restore recusado`, /destino do restore/.test(tToasts), tToasts.slice(0, 200))
+  check(`${P} destino continua listado`, (await page.getByText('rs-prod-01', { exact: true }).count()) >= 1)
+
   // Roles: delete por nome
   await nav(page, 'Custom Roles')
   await page.getByRole('button', { name: 'Delete' }).first().click()

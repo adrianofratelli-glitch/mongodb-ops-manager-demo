@@ -65,11 +65,21 @@ const RESTORE_RUNNING_SECONDS = 3
 const RESTORE_TOTAL_SECONDS = 9
 let perfLastAvgMs = null
 
+// Revalida origem e destino antes de cada transição (espelha o backend):
+// um job nunca termina `completed` para um cluster que não existe.
 function updateRestoreJobs() {
   const now = Date.now()
   STATE.restore_jobs.forEach((j) => {
+    if (j.status !== 'queued' && j.status !== 'running') return
+    const gone = [j.cluster, j.target_cluster].filter((n) => n && !findCluster(n))
+    if (gone.length) {
+      j.status = 'failed'
+      j.error = `Cluster "${gone[0]}" não existe mais; restore interrompido.`
+      logActivity('System', 'RESTORE FAILED', j.cluster, `${j.id}: ${j.error}`)
+      return
+    }
     if (j.status === 'queued' && j._runningAt && now >= j._runningAt) j.status = 'running'
-    if ((j.status === 'queued' || j.status === 'running') && j._doneAt && now >= j._doneAt) j.status = 'completed'
+    if (j._doneAt && now >= j._doneAt) j.status = 'completed'
   })
 }
 const publicJob = (j) => Object.fromEntries(Object.entries(j).filter(([k]) => !k.startsWith('_')))
@@ -109,6 +119,7 @@ function expireResyncs() {
 const UPGRADE_ORDER = { 'Config Server': 0, SECONDARY: 1, 'Shard PRIMARY': 2, PRIMARY: 2, Standalone: 2, mongos: 3 }
 function checkUpgrade(c, target) {
   if (c.upgrade) throw new ApiError(`Rolling upgrade para ${c.upgrade.target} já está em andamento em ${c.name}; aguarde concluir.`)
+  if (restoreInto(c.name)) throw new ApiError(`Upgrade bloqueado: ${busyReason(c)}.`)
   if (c.nodes.some((n) => n.resync_until)) throw new ApiError(`${c.name} tem um nó em initial sync; aguarde terminar antes do upgrade.`)
   checkKnownVersion(target)
   const d = cmpV(target, c.version)
@@ -143,7 +154,13 @@ function advanceUpgrades() {
   })
 }
 const advanceAll = () => { expireResyncs(); advanceUpgrades(); updateRestoreJobs() }
-const busyReason = (c) => (c.upgrade ? `rolling upgrade para ${c.upgrade.target} em andamento` : null)
+// Job de restore ativo cujo DESTINO é o cluster (target same ou target_cluster).
+const restoreInto = (name) => STATE.restore_jobs.find((j) => (j.status === 'queued' || j.status === 'running') && (j.target_cluster === name || (j.cluster === name && j.target === 'same')))
+const busyReason = (c) => {
+  if (c.upgrade) return `rolling upgrade para ${c.upgrade.target} em andamento`
+  const job = restoreInto(c.name)
+  return job ? `restore ${job.id} em andamento com ${c.name} como destino` : null
+}
 const requireCluster = (id) => { const c = findCluster(id); if (!c) throw new ApiError('Cluster não encontrado', 404); return c }
 
 // O alerta que o banner deve mostrar: o mais severo ainda não reconhecido.
@@ -299,7 +316,13 @@ export const MockAPI = {
     return cluster
   }),
   deleteCluster: (id) => run(() => {
+    advanceAll()
     const c = requireCluster(id)
+    const job = activeRestore(c.name)
+    if (job) {
+      const role = restoreInto(c.name) === job ? 'destino' : 'origem'
+      throw new ApiError(`Não é possível terminar ${c.name}: é ${role} do restore ${job.id} em andamento; aguarde concluir.`)
+    }
     STATE.clusters.splice(STATE.clusters.indexOf(c), 1)
     dropAgents(c)
     const fechados = closeAlertsFor(c.name)
@@ -514,8 +537,11 @@ export const MockAPI = {
     return snap
   }),
   deleteSnapshot: (sid) => run(() => {
+    updateRestoreJobs()
     const s = STATE.snapshots.find((x) => x.id === sid)
     if (!s) throw new ApiError('Snapshot não encontrado', 404)
+    const job = STATE.restore_jobs.find((j) => (j.status === 'queued' || j.status === 'running') && j._snapshotId === sid)
+    if (job) throw new ApiError(`Snapshot ${sid} está sendo usado pelo restore ${job.id} em andamento; aguarde concluir.`)
     STATE.snapshots.splice(STATE.snapshots.indexOf(s), 1)
     logActivity(ADMIN, 'SNAPSHOT DELETE', s.cluster, `Snapshot ${sid} removido`)
     return { ok: true }
@@ -541,6 +567,8 @@ export const MockAPI = {
     }
     const busy = activeRestore(c.name) || (targetCluster && activeRestore(targetCluster.name))
     if (busy) throw new ApiError(`Já existe um restore em andamento (${busy.id}); aguarde concluir.`)
+    const dest = targetCluster || (target === 'same' ? c : null)
+    if (dest && dest.upgrade) throw new ApiError(`Restore bloqueado: ${dest.name} está em ${busyReason(dest)}; aguarde concluir.`)
     let kind, point
     if (b.snapshot_id) {
       const snap = STATE.snapshots.find((s) => s.id === b.snapshot_id)
@@ -560,6 +588,7 @@ export const MockAPI = {
       _runningAt: now + RESTORE_RUNNING_SECONDS * 1000, _doneAt: now + RESTORE_TOTAL_SECONDS * 1000,
     }
     if (targetCluster) job.target_cluster = targetCluster.name
+    if (kind === 'Snapshot') job._snapshotId = b.snapshot_id
     STATE.restore_jobs.unshift(job)
     const label = kind === 'PIT' ? 'Point-in-time' : `Snapshot ${b.snapshot_id}`
     logActivity(ADMIN, 'RESTORE', c.name, `${label} restore iniciado (${point} → ${target})`)

@@ -142,7 +142,8 @@ produto real não faria. Cada linha tem cenário em
 | Step down | Nó em `STARTUP2` (resync) não é eleito; bloqueado durante upgrade | Membro em initial sync não é elegível |
 | Add Node | Só replica set; bloqueado durante upgrade | Sharded cresce por shard; standalone precisa virar replica set |
 | Snapshot | Recusa standalone | Backup contínuo depende do oplog; standalone não tem oplog |
-| Restore | Recusa cluster sem snapshot, standalone, ponto fora da janela PIT (do snapshot mais antigo ao mais recente), destino de topologia diferente e restore simultâneo na mesma origem/destino; restore a partir de snapshot vira job `Snapshot`, não `PIT` | Restore só existe dentro da janela coberta pelo backup |
+| Restore | Recusa cluster sem snapshot, standalone, ponto fora da janela PIT (do snapshot mais antigo ao mais recente), destino de topologia diferente, restore simultâneo na mesma origem/destino e destino em rolling upgrade; restore a partir de snapshot vira job `Snapshot`, não `PIT` | Restore só existe dentro da janela coberta pelo backup |
+| Restore em andamento | Destino (inclusive `same`) recusa terminate, upgrade, add node, step down e resync; origem recusa terminate; o snapshot em uso não pode ser apagado (todos 409). Job que perde origem/destino por outro caminho termina `failed` com `error`, nunca `completed` | Automated restore reescreve o destino via Automation; remover o deployment apaga os snapshots ([fontes no README](../../README.md#what-is-simulated-and-which-rules-are-real)) |
 | Automation | Mudança pendente de cluster terminado é recusada (descartar); upgrade pendente vira rolling upgrade real da simulação; config change grava `config` no cluster | — |
 | Deletes (roles, IP, alert config, sugestão de índice) | Por chave estável (nome, rede, `id`), não por posição — duas abas não apagam o item errado; duplicatas recusadas com 409 | — |
 

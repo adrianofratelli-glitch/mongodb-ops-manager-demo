@@ -2,7 +2,7 @@
 
 # MongoDB Ops Manager — Interactive PoV
 
-**A faithful, fully interactive simulation of MongoDB Ops Manager**, built with
+**A fully interactive simulation of MongoDB Ops Manager** (no real Ops Manager behind it), built with
 MongoDB's LeafyGreen Design System and a Python backend.
 
 Created to support MongoDB Enterprise Advanced positioning in Brazil. This
@@ -57,7 +57,7 @@ returns everything to that seed, including in-flight upgrades and restores.
 **Publish a new live-demo version:**
 
 ```bash
-./deploy-pages.sh   # static mock build → GitHub Pages
+./deploy-pages.sh   # static mock build → GitHub Pages (new commit on gh-pages, no force-push)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for architecture, endpoints, and manual
@@ -94,23 +94,33 @@ runs from reset, 360/768/1440 px layouts, `prefers-reduced-motion`).
 
 ## What is simulated, and which rules are real
 
-Every number and every action is simulated in memory; the top bar says so on
-every screen. The *refusals*, however, follow documented Ops Manager / MongoDB
-behavior, so the demo never shows something the product would not do:
+**Everything is simulated.** There is no Ops Manager installation, no MongoDB
+process and no agent behind this demo: every number, duration and action lives
+in memory (FastAPI or the browser mock), and the top bar says so on every
+screen. The demo is **not evidence of product performance or results**; it
+shows the operator experience and the order in which Ops Manager allows things
+to happen.
 
-- **Upgrades** are rolling (config servers, secondaries, primary, mongos, one
-  process at a time), go one release series at a time, and block resync, step
-  down, add node and a second upgrade while they run.
-- **Backup** covers replica sets and sharded clusters only: a standalone has no
-  oplog, so there is no continuous backup or point-in-time restore.
-- **Restore** requires a snapshot, a point inside the cluster's PIT window, a
-  target with the same topology, and no other restore running on the same
-  source or target.
-- **Resync** applies to `SECONDARY` members only, and a member in `STARTUP2` is
-  never elected primary.
+What *was* checked is the set of refusals below, against official MongoDB
+documentation (read on 2026-10-09). "Literal" means the page states the rule;
+"inferred" means the page describes the mechanism and the demo picks the
+refusal that follows from it.
+
+| Rule enforced by the demo | Basis | Source |
+|---|---|---|
+| Upgrades go one release series at a time (6.0 → 7.0 → 8.0) | Literal | [Upgrade a Replica Set to 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0-upgrade-replica-set/) |
+| Version changes are rolling, one process at a time, and block resync, step down, add node and a second upgrade while they run | Inferred (Automation applies one goal state per deployment) | [Change the Version of MongoDB](https://www.mongodb.com/docs/ops-manager/current/tutorial/change-mongodb-version/) |
+| Downgrade is refused | Simplification: Ops Manager allows a downgrade within the same FCV; the demo refuses all downgrades and says why | [Change the Version of MongoDB](https://www.mongodb.com/docs/ops-manager/current/tutorial/change-mongodb-version/) |
+| A standalone has no continuous backup or point-in-time restore | Literal (no oplog) | [FAQ: Backup and Restore](https://www.mongodb.com/docs/ops-manager/current/reference/faq/faq-backup/) |
+| A member in `STARTUP2` (initial sync) is never elected primary | Literal | [Replica Set Member States](https://www.mongodb.com/docs/manual/reference/replica-states/) |
+| Restore requires a snapshot, a point inside the PIT window and a target with the same topology; sharded restores cover all shards | Literal | [Restore Overview](https://www.mongodb.com/docs/ops-manager/current/tutorial/nav/restore-overview/) |
+| While a restore runs, its target cannot be terminated, upgraded or changed (add node, step down, resync) | Inferred: an automated restore removes all data on the target and rewrites it through Automation | [Restore Overview](https://www.mongodb.com/docs/ops-manager/current/tutorial/nav/restore-overview/) |
+| While a restore runs, its source cannot be terminated and its snapshot cannot be deleted | Inferred: removing a deployment from Ops Manager deletes its snapshots | [Stop Managing and/or Monitoring One Deployment](https://www.mongodb.com/docs/ops-manager/current/tutorial/unmanage-deployment/) |
+| A restore job that loses its source or target ends `failed` with a reason, never `completed` | Inferred: restore jobs end `FINISHED`, `BROKEN` or `KILLED` | [Troubleshoot Backup and Restore Failures](https://www.mongodb.com/docs/manual/troubleshooting/backup-restore-failures/) |
 
 Durations (3 s per upgraded process, 9 s restore, 25 s initial sync) are demo
-timings, not product measurements.
+timings, not product measurements. Rules not listed here (alert thresholds,
+Performance Advisor figures, agent versions) are illustrative only.
 
 ---
 

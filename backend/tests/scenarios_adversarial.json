@@ -160,6 +160,41 @@
         {"call": "deleteCluster", "args": ["rs-staging"], "expect": "ok"},
         {"call": "deleteCluster", "args": ["rs-staging"], "expect": {"status": 404}}
       ]
+    },
+    {
+      "name": "Restore em andamento trava origem, destino e snapshot até concluir",
+      "steps": [
+        {"call":  "createCluster", "args":  [{"name":  "dest-rs", "type":  "Replica Set", "version":  "7.0.5", "members":  3}], "expect":  "ok"},
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "snapshot_id":  "snap-00142", "target":  "dest-rs"}], "expect":  "ok"},
+        {"call":  "deleteCluster", "args":  ["dest-rs"], "expect":  {"status":  409, "contains":  "destino do restore"}},
+        {"call":  "deleteCluster", "args":  ["rs-prod-01"], "expect":  {"status":  409, "contains":  "origem do restore"}},
+        {"call":  "deleteSnapshot", "args":  ["snap-00142"], "expect":  {"status":  409, "contains":  "sendo usado pelo restore"}},
+        {"call":  "upgradeCluster", "args":  ["dest-rs", {"target_version":  "7.0.6"}], "expect":  {"status":  409, "contains":  "como destino"}},
+        {"call":  "addNode", "args":  ["dest-rs", {}], "expect":  {"status":  409, "contains":  "como destino"}},
+        {"call":  "resyncNode", "args":  ["dest-rs", 1], "expect":  {"status":  409, "contains":  "como destino"}},
+        {"call":  "stepDown", "args":  ["dest-rs", 0], "expect":  {"status":  409, "contains":  "como destino"}},
+        {"get":  "clusters", "find":  {"id":  "dest-rs"}, "path":  "name", "equals":  "dest-rs"},
+        {"advance":  10},
+        {"get":  "restoreJobs", "path":  "0.status", "equals":  "completed"},
+        {"get":  "restoreJobs", "path":  "0.target_cluster", "equals":  "dest-rs"},
+        {"call":  "deleteSnapshot", "args":  ["snap-00142"], "expect":  "ok"},
+        {"call":  "deleteCluster", "args":  ["dest-rs"], "expect":  "ok"},
+        {"call":  "deleteCluster", "args":  ["rs-prod-01"], "expect":  "ok"}
+      ]
+    },
+    {
+      "name": "Restore no próprio cluster bloqueia Automation nele; upgrade no destino bloqueia restore",
+      "steps": [
+        {"call":  "upgradeCluster", "args":  ["rs-staging", {"target_version":  "6.0.13"}], "expect":  "ok"},
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "rs-staging"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}},
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "same"}], "expect":  "ok"},
+        {"call":  "deleteCluster", "args":  ["rs-prod-01"], "expect":  {"status":  409, "contains":  "destino do restore"}},
+        {"call":  "upgradeCluster", "args":  ["rs-prod-01", {"target_version":  "7.0.6"}], "expect":  {"status":  409, "contains":  "como destino"}},
+        {"advance":  10},
+        {"get":  "restoreJobs", "path":  "0.status", "equals":  "completed"},
+        {"call":  "upgradeCluster", "args":  ["rs-prod-01", {"target_version":  "7.0.6"}], "expect":  "ok"},
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "same"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}}
+      ]
     }
   ]
 }

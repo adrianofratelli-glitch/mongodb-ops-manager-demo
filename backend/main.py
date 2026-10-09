@@ -249,6 +249,8 @@ _UPGRADE_ORDER = {"Config Server": 0, "SECONDARY": 1, "Shard PRIMARY": 2, "PRIMA
 def _check_upgrade(c, target):
     if c.get("upgrade"):
         raise HTTPException(409, f'Rolling upgrade para {c["upgrade"]["target"]} já está em andamento em {c["name"]}; aguarde concluir.')
+    if _restore_into(c["name"]):
+        raise HTTPException(409, f"Upgrade bloqueado: {_busy_reason(c)}.")
     if any(n.get("resync_until") for n in c["nodes"]):
         raise HTTPException(409, f"{c['name']} tem um nó em initial sync; aguarde terminar antes do upgrade.")
     _check_known_version(target)
@@ -304,14 +306,25 @@ def _advance_upgrades():
 
 
 def _update_restore_jobs():
+    """Evolui os jobs por relógio, mas revalida origem e destino antes de cada
+    transição: um job nunca termina `completed` para um cluster que não existe.
+    (Com as recusas de delete abaixo isso não deveria ocorrer; fica como defesa.)"""
     now = time.time()
     with STATE_LOCK:
         for j in STATE["restore_jobs"]:
+            if j["status"] not in ("queued", "running"):
+                continue
+            gone = [n for n in (j["cluster"], j.get("target_cluster")) if n and not find_cluster(n)]
+            if gone:
+                j["status"] = "failed"
+                j["error"] = f'Cluster "{gone[0]}" não existe mais; restore interrompido.'
+                _log_activity("System", "RESTORE FAILED", j["cluster"], f'{j["id"]}: {j["error"]}')
+                continue
             running_at = j.get("_running_at")
             done_at = j.get("_done_at")
             if j["status"] == "queued" and running_at and now >= running_at:
                 j["status"] = "running"
-            if j["status"] in ("queued", "running") and done_at and now >= done_at:
+            if done_at and now >= done_at:
                 j["status"] = "completed"
 
 
@@ -321,9 +334,20 @@ def _advance_all():
     _update_restore_jobs()
 
 
+def _restore_into(name):
+    """Job de restore ativo cujo DESTINO é o cluster `name` (target same ou
+    target_cluster). Restore automatizado reescreve os dados do destino via
+    Automation; enquanto isso, nenhuma outra mudança de Automation entra nele."""
+    return next((j for j in STATE["restore_jobs"] if j["status"] in ("queued", "running")
+                 and (j.get("target_cluster") == name or (j["cluster"] == name and j["target"] == "same"))), None)
+
+
 def _busy_reason(c):
     if c.get("upgrade"):
         return f"rolling upgrade para {c['upgrade']['target']} em andamento"
+    job = _restore_into(c["name"])
+    if job:
+        return f"restore {job['id']} em andamento com {c['name']} como destino"
     return None
 
 
@@ -377,10 +401,18 @@ def create_cluster(req: NewCluster):
 
 @app.delete("/api/clusters/{cid}")
 def delete_cluster(cid: str):
+    _advance_all()
     with STATE_LOCK:
         c = find_cluster(cid)
         if not c:
             raise HTTPException(404, "Cluster não encontrado")
+        # Recusa como o Ops Manager: o destino está sendo reescrito pela
+        # Automation e a origem é dona dos snapshots usados no job (remover o
+        # deployment do Ops Manager apaga os snapshots associados).
+        job = _active_restore(c["name"])
+        if job:
+            role = "destino" if _restore_into(c["name"]) is job else "origem"
+            raise HTTPException(409, f"Não é possível terminar {c['name']}: é {role} do restore {job['id']} em andamento; aguarde concluir.")
         STATE["clusters"].remove(c)
         _drop_agents(c)
         closed = _close_alerts_for(c["name"])
@@ -877,10 +909,14 @@ def take_snapshot(cluster: str):
 
 @app.delete("/api/backup/snapshot/{sid}")
 def delete_snapshot(sid: str):
+    _update_restore_jobs()
     with STATE_LOCK:
         s = next((x for x in STATE["snapshots"] if x["id"] == sid), None)
         if not s:
             raise HTTPException(404, "Snapshot não encontrado")
+        job = next((j for j in STATE["restore_jobs"] if j["status"] in ("queued", "running") and j.get("_snapshot_id") == sid), None)
+        if job:
+            raise HTTPException(409, f"Snapshot {sid} está sendo usado pelo restore {job['id']} em andamento; aguarde concluir.")
         STATE["snapshots"].remove(s)
         _log_activity(ADMIN, "SNAPSHOT DELETE", s["cluster"], f"Snapshot {sid} removido")
     return {"ok": True}
@@ -932,6 +968,9 @@ def start_restore(req: NewRestore):
         busy = _active_restore(c["name"]) or (target_cluster and _active_restore(target_cluster["name"]))
         if busy:
             raise HTTPException(409, f"Já existe um restore em andamento ({busy['id']}); aguarde concluir.")
+        dest = target_cluster or (c if req.target == "same" else None)
+        if dest and dest.get("upgrade"):
+            raise HTTPException(409, f"Restore bloqueado: {dest['name']} está em {_busy_reason(dest)}; aguarde concluir.")
 
         if req.snapshot_id:
             snap = next((s for s in STATE["snapshots"] if s["id"] == req.snapshot_id), None)
@@ -967,6 +1006,8 @@ def start_restore(req: NewRestore):
         }
         if target_cluster:
             job["target_cluster"] = target_cluster["name"]
+        if kind == "Snapshot":
+            job["_snapshot_id"] = req.snapshot_id
         STATE["restore_jobs"].insert(0, job)
         label = "Point-in-time" if kind == "PIT" else f"Snapshot {req.snapshot_id}"
         _log_activity(ADMIN, "RESTORE", c["name"], f"{label} restore iniciado ({point} → {req.target})")

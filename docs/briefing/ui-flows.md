@@ -127,7 +127,10 @@ sozinho `queued → running → completed` em ~9 s simulados
 mostrada, o ponto padrão e os limites do campo vêm de `pit_windows` do
 `GET /api/backup`; cluster sem snapshot (ou standalone) mostra aviso e
 desabilita o botão. Restore simultâneo na mesma origem/destino volta 409 com o
-job em andamento.
+job em andamento. Enquanto o job roda, Terminate do destino ou da origem em
+Deployments volta 409 com o motivo no toast ("é destino do restore rst-…"); job
+`failed` mostra badge vermelho e o motivo na coluna Status. O polling da tabela
+só roda com a aba visível e para quando não há job `queued`/`running`.
 
 ## Alerts (`Alerts.jsx`)
 
