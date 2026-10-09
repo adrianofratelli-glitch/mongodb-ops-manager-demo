@@ -21,7 +21,8 @@ fi
 
 cd "$ROOT/frontend"
 echo "Build estático (mock + base ${BASE}) de ${SHA}..."
-VITE_USE_MOCK=1 VITE_BASE="$BASE" npm run build
+# Diretório próprio: o dist/ local (base "/", backend real) servido pelo start.sh não é tocado.
+VITE_USE_MOCK=1 VITE_BASE="$BASE" npm run build -- --outDir dist-pages --emptyOutDir
 
 WT="$(mktemp -d)"
 cleanup() { git -C "$ROOT" worktree remove --force "$WT" 2>/dev/null || rm -rf "$WT"; }
@@ -29,7 +30,7 @@ trap cleanup EXIT
 git -C "$ROOT" fetch -q origin gh-pages
 git -C "$ROOT" worktree add -q --detach "$WT" origin/gh-pages
 
-rsync -a --delete --exclude .git "$ROOT/frontend/dist/" "$WT/"
+rsync -a --delete --exclude .git "$ROOT/frontend/dist-pages/" "$WT/"
 touch "$WT/.nojekyll"
 cd "$WT"
 git add -A

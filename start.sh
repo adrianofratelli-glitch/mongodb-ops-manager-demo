@@ -56,6 +56,7 @@ fi
 cd "$BASE/frontend"
 if [[ "${POV_DEV:-0}" != "1" ]] && {
   [[ ! -f dist/index.html ]] ||
+  grep -q "/mongodb-ops-manager-demo/" dist/index.html ||
   [[ -n "$(find src -type f -newer dist/index.html -print -quit)" ]] ||
   [[ index.html -nt dist/index.html ]] ||
   [[ package-lock.json -nt dist/index.html ]] ||

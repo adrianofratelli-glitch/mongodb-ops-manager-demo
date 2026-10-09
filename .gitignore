@@ -24,3 +24,6 @@ __pycache__/
 *.pdf
 *.pptx
 *.key
+
+# build estático do GitHub Pages (deploy-pages.sh)
+frontend/dist-pages/
