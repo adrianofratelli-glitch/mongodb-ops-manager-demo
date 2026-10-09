@@ -58,6 +58,7 @@ a { text-decoration: none; }
 
 /* Rótulo permanente de simulação: texto (não só cor), borda âmbar do token --warning. */
 .ops-sim-chip {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   padding: 4px 8px;
@@ -69,6 +70,8 @@ a { text-decoration: none; }
   text-transform: uppercase;
   white-space: nowrap;
 }
+.ops-sim-chip:hover { background: rgba(255, 173, 0, .12); }
+.ops-sim-chip:focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
 
 @media (forced-colors: active) {
   .ops-sim-chip { border-color: CanvasText; color: CanvasText; }

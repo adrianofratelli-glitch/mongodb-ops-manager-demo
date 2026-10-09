@@ -4,6 +4,9 @@ import Icon from '@leafygreen-ui/icon'
 import { palette } from '@leafygreen-ui/palette'
 import MongoLeaf from './MongoLeaf'
 
+// O que é simulado e quais recusas foram conferidas na documentação oficial (README).
+const SIM_RULES_URL = 'https://github.com/adrianofratelli-glitch/mongodb-ops-manager-demo#what-is-simulated-and-which-rules-are-real'
+
 export default function TopBar({ org, project, onNewDeployment, onBell }) {
   return (
     <header
@@ -40,9 +43,10 @@ export default function TopBar({ org, project, onNewDeployment, onBell }) {
 
       <div className="ops-topbar__spacer" style={{ flex: 1 }} />
 
-      <span className="ops-sim-chip" title="Nenhuma ação fala com um Ops Manager real: estado fictício em memória, volta ao inicial com Reset Demo.">
+      <a className="ops-sim-chip" href={SIM_RULES_URL} target="_blank" rel="noreferrer"
+        title="Nenhuma ação fala com um Ops Manager real: estado fictício em memória, volta ao inicial com Reset Demo. Clique para ver quais regras foram conferidas na documentação oficial.">
         Simulação · dados fictícios
-      </span>
+      </a>
 
       <span className="ops-automation-state" aria-label="Automation ativa">
         <i aria-hidden="true" />

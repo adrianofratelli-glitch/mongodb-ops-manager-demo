@@ -12,7 +12,8 @@ import { useDarkMode } from '@leafygreen-ui/leafygreen-provider'
 import { PageHeader, Grid, DataTable, Loading } from '../components/ui'
 import { API, errMsg } from '../api/client'
 
-const STATUS_BADGE = { queued: ['lightgray', '⏳ Queued'], running: ['yellow', '● Running'], completed: ['green', '✓ Completed'] }
+const STATUS_BADGE = { queued: ['lightgray', '⏳ Queued'], running: ['yellow', '● Running'], completed: ['green', '✓ Completed'], failed: ['red', '✕ Failed'] }
+const ATIVO = (j) => j.status === 'queued' || j.status === 'running'
 
 // "2024-01-15 08:00" (UTC) → valor aceito por <input type="datetime-local">
 const toInput = (ts) => (ts ? ts.replace(' ', 'T').slice(0, 16) : '')
@@ -41,10 +42,10 @@ export default function Restore({ toast }) {
 
   // Enquanto um job estiver queued/running, a tabela se atualiza sozinha —
   // mesmo padrão do resync de nó em Deployments.jsx.
-  const emAndamento = Array.isArray(jobs) && jobs.some((j) => j.status !== 'completed')
+  const emAndamento = Array.isArray(jobs) && jobs.some(ATIVO)
   useEffect(() => {
     if (!emAndamento) return
-    const id = setInterval(reloadJobs, 2000)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') reloadJobs() }, 2000)
     return () => clearInterval(id)
   }, [emAndamento])
 
@@ -66,7 +67,7 @@ export default function Restore({ toast }) {
     { header: 'Type', render: (r) => <Badge variant={r.type === 'PIT' ? 'blue' : 'lightgray'}>{r.type}</Badge> },
     { header: 'Restore Point', key: 'point' },
     { header: 'Target', key: 'target' },
-    { header: 'Status', render: (r) => { const [v, l] = STATUS_BADGE[r.status] || STATUS_BADGE.queued; return <Badge variant={v}>{l}</Badge> } },
+    { header: 'Status', render: (r) => { const [v, l] = STATUS_BADGE[r.status] || STATUS_BADGE.queued; return <><Badge variant={v}>{l}</Badge>{r.error && <Body style={{ fontSize: 12, marginTop: 4 }}>{r.error}</Body>}</> } },
     { header: 'Started', key: 'started' },
   ]
 
@@ -101,7 +102,7 @@ export default function Restore({ toast }) {
             </Select>
             {noBackup
               ? <Banner variant="warning">{why}</Banner>
-              : <Banner variant="info">Janela de PIT de <b>{cluster}</b>: <b>{win.from} → {win.to} UTC</b> (do snapshot retido mais antigo ao mais recente). Simulação: o job evolui em memória (queued → running → completed) em ~9 s.</Banner>}
+              : <Banner variant="info">Janela de PIT de <b>{cluster}</b>: <b>{win.from} → {win.to} UTC</b> (do snapshot retido mais antigo ao mais recente). Simulação: o job evolui em memória (queued → running → completed) em ~9 s; enquanto isso, origem e destino recusam terminate, upgrade e mudanças de nó.</Banner>}
             <Button variant="primary" disabled={busy || noBackup} onClick={start}>{busy ? 'Iniciando…' : 'Start Point-in-Time Restore'}</Button>
           </div>
           <div>
