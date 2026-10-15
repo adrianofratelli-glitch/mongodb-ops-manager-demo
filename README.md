@@ -168,3 +168,11 @@ Enterprise Advanced are trademarks of MongoDB, Inc.
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+### Compatibilidade do frontend
+
+LeafyGreen utiliza módulos Node transitivos. O Vite resolve `buffer`, `process`, `events`
+e `stream` com aliases explícitos; o módulo inicial configura os globais no dev e Rolldown resolve os símbolos no build.
+Isso mantém os chunks independentes da ordem de inicialização de globais. Após atualizar
+essas dependências, validar build e abertura no navegador (um build verde não detecta
+`Buffer is not defined` em runtime).

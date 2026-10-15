@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Corrige abas controladas de Connect/Alerts para a API LeafyGreen v17 (`value`/`onValueChange`); usa injeção nativa do Rolldown para preservar React em modo produção.
+
+- Atualiza dependências compatíveis e pisos de segurança; alinha metadados de versão entre aplicação e frontend.
+- Substitui polyfills genéricos por aliases explícitos de Buffer, process, events e stream.
+
+## 1.2.1
+
+- Separa build Pages em `dist-pages` e recompila a versão local quando o base path diverge (commit `3a5e2c4`).
+
 ## 1.2.0 (2026-10-09)
 
 - Restore lifecycle: while a restore job is queued or running, its target refuses terminate, upgrade, add node, step down and resync, its source refuses terminate, and the snapshot in use cannot be deleted (409 with the job id). A rolling upgrade on the target blocks a new restore into it.

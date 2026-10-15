@@ -49,7 +49,7 @@ export default function Alerts({ toast, refreshCounts }) {
   return (
     <div>
       <PageHeader title="Alerts" subtitle={`${data.open.length} open alert${data.open.length !== 1 ? 's' : ''} · Project: Production`} />
-      <Tabs selected={tab} setSelected={setTab} aria-label="Alerts">
+      <Tabs value={tab} onValueChange={setTab} aria-label="Alerts">
         <Tab name={`Open Alerts (${data.open.length})`}>
           <div style={{ paddingTop: spacing[400] }}>
             {data.open.length === 0 ? (

@@ -30,7 +30,7 @@ export default function ConnectModal({ open, cluster, onClose, toast }) {
   return (
     <Modal open={open} setOpen={onClose} size="default">
       <H3 style={{ marginBottom: spacing[300] }}>Connect to {cluster.name}</H3>
-      <Tabs selected={tab} setSelected={setTab} aria-label="Connect options">
+      <Tabs value={tab} onValueChange={setTab} aria-label="Connect options">
         <Tab name="Connection String">
           <div style={{ paddingTop: spacing[300] }}>
             <Label htmlFor="uri">Standard Connection String (SRV)</Label>

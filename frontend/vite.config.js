@@ -1,19 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
 
 // Em dev, /api é redirecionado para o backend FastAPI (porta 8077).
 // base: '/' em dev/local; '/mongodb-ops-manager-demo/' no build do GitHub Pages (via VITE_BASE).
 export default defineConfig({
   base: process.env.VITE_BASE || '/',
-  // nodePolyfills: alguns transitive deps do LeafyGreen (@emotion/server →
+  // Alguns transitive deps do LeafyGreen (@emotion/server →
   // html-tokenize) usam Buffer/process do Node, que não existem no browser.
-  plugins: [nodePolyfills({ globals: { Buffer: true, global: true, process: true } }), react()],
+  plugins: [react()],
+  define: { global: 'globalThis' },
+  resolve: { alias: {
+    buffer: require.resolve('buffer/'),
+    events: require.resolve('events/'),
+    process: require.resolve('process/browser'),
+    stream: require.resolve('stream-browserify'),
+  } },
   // React e LeafyGreen mudam muito pouco: em chunks próprios, o navegador
   // reaproveita o cache entre deploys em vez de rebaixar 1 MB toda vez.
   build: {
     chunkSizeWarningLimit: 700,
-    rollupOptions: {
+    rolldownOptions: {
+      transform: { inject: { Buffer: ['buffer', 'Buffer'], process: 'process' } },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
