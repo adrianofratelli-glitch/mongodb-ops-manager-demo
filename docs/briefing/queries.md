@@ -1,5 +1,7 @@
 # Queries e índices — mongodb-ops-manager-demo
 
+> Números de linha podem ficar defasados após mudanças: a fonte atualizada é [MAPA_DO_CODIGO.md](../MAPA_DO_CODIGO.md).
+
 ## Leia isto primeiro: não há MongoDB real nesta PoV
 
 Grep completo no repo (`backend/`, `frontend/src/`) por `.aggregate(`,

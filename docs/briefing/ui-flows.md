@@ -1,5 +1,7 @@
 # Telas, fluxos e componentes — mongodb-ops-manager-demo
 
+> Números de linha podem ficar defasados após mudanças: a fonte atualizada é [MAPA_DO_CODIGO.md](../MAPA_DO_CODIGO.md).
+
 Nota sobre screenshots: não existe nenhum arquivo de imagem (`.png`/`.jpg`)
 neste repositório — nem em `docs/`, nem em `frontend/`. Se precisar de
 screenshots para um material de apresentação, capture na hora rodando
@@ -47,10 +49,9 @@ Primeira tela vista. Busca `GET /api/dashboard` no mount.
 
 ## Deployments / All Clusters (`Deployments.jsx`)
 
-Lista completa de clusters com ações: criar (`NewDeploymentModal.jsx`,
+Lista completa de clusters com ações: criar (`modals/NewDeploymentModal.jsx`,
 `POST /api/clusters`), deletar com confirmação (`ConfirmationModal`,
-`DELETE /api/clusters/{id}`), editar config (`PUT /api/clusters/{id}`),
-adicionar nó (`POST /api/clusters/{id}/nodes`), step down de PRIMARY
+`DELETE /api/clusters/{id}`; a edição de config, `PUT /api/clusters/{id}`, existe em `client.js` mas nenhuma tela a chama), adicionar nó (`POST /api/clusters/{id}/nodes`), step down de PRIMARY
 (`POST /api/clusters/{id}/stepdown`), resync de secundário
 (`POST /api/clusters/{id}/resync`), upgrade de versão
 (`POST /api/clusters/{id}/upgrade`), e o modal "Connect"
@@ -137,8 +138,7 @@ só roda com a aba visível e para quando não há job `queued`/`running`.
 Lista `alerts_open` + configs de alerta. Acknowledge (`POST
 /api/alerts/{id}/acknowledge`) silencia por 60 min (`ACK_MINUTES`) e some
 do banner do Dashboard até expirar ou até ser resolvido. Resolve (`POST
-/api/alerts/{id}/resolve`) remove definitivamente. CRUD de alert configs
-(`POST`/`DELETE /api/alerts/configs`).
+/api/alerts/{id}/resolve`) remove definitivamente. Na UI só há remoção de alert config (`DELETE /api/alerts/configs/{id}`); `addAlertConfig` existe em `client.js`, mas nenhuma tela chama.
 
 ## Security: Users / Roles / Auth / Audit
 
@@ -146,8 +146,8 @@ do banner do Dashboard até expirar ou até ser resolvido. Resolve (`POST
   (`GET/POST/DELETE /api/users`), com validação de nome único e formato.
 - **Roles** (`Roles.jsx`): CRUD de custom roles (`GET/POST/DELETE
   /api/roles`).
-- **Auth** (`Auth.jsx`): IP Access List (`GET/POST/DELETE
-  /api/security/ip`), com validação de CIDR (`ip_network`).
+- **Auth** (`Auth.jsx`): IP Access List: a tela só lista e remove IP (`GET/DELETE
+  /api/security/ip`); `addIp` (`POST`, com validação de CIDR no backend) existe em `client.js`, mas nenhuma tela chama.
 - **Audit** (`Audit.jsx`): `GET /api/audit`, lista fixa de eventos de
   auditoria do seed. Exporta CSV real do que está em tela — filtro aplicado
   é respeitado na exportação.
