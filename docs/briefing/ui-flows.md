@@ -1,4 +1,4 @@
-# Telas, fluxos e componentes — ops-manager-demo
+# Telas, fluxos e componentes — mongodb-ops-manager-demo
 
 Nota sobre screenshots: não existe nenhum arquivo de imagem (`.png`/`.jpg`)
 neste repositório — nem em `docs/`, nem em `frontend/`. Se precisar de

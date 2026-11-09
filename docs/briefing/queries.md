@@ -1,4 +1,4 @@
-# Queries e índices — ops-manager-demo
+# Queries e índices — mongodb-ops-manager-demo
 
 ## Leia isto primeiro: não há MongoDB real nesta PoV
 

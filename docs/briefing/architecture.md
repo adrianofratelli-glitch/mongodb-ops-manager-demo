@@ -1,4 +1,4 @@
-# Arquitetura — ops-manager-demo
+# Arquitetura — mongodb-ops-manager-demo
 
 ## O que essa PoV é (e o que ela não é)
 
