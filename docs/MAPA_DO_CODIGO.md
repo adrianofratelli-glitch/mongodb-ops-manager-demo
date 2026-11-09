@@ -1,6 +1,6 @@
 # Mapa do código — mongodb-ops-manager-demo
 
-> Também conhecida como: Ops Manager (a pasta no disco ainda se chama `mongodb-ops-manager-demo`). Portas: frontend 5377 / backend 8077. Em uma frase: uma simulação interativa do MongoDB Ops Manager (implantações, Automation, métricas, backup/restore, alertas, segurança) feita com LeafyGreen; **não há Ops Manager nem MongoDB reais por trás**, o estado vive em memória.
+> Também conhecida como: Ops Manager (pasta antiga `ops-manager-demo`). Portas: frontend 5377 / backend 8077. Em uma frase: uma simulação interativa do MongoDB Ops Manager (implantações, Automation, métricas, backup/restore, alertas, segurança) feita com LeafyGreen; **não há Ops Manager nem MongoDB reais por trás**, o estado vive em memória.
 
 Telas e roteiro: [briefing/ui-flows.md](briefing/ui-flows.md). Sobre "queries": [briefing/queries.md](briefing/queries.md) (resumo: não existe nenhuma query MongoDB). Arquitetura: [briefing/architecture.md](briefing/architecture.md) e `ARCHITECTURE.md` na raiz.
 
