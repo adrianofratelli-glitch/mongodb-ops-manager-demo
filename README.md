@@ -1,5 +1,7 @@
 <div align="center">
 
+Mapa do código: [docs/MAPA_DO_CODIGO.md](docs/MAPA_DO_CODIGO.md)
+
 # MongoDB Ops Manager — Interactive PoV
 
 **A fully interactive simulation of MongoDB Ops Manager** (no real Ops Manager behind it), built with
