@@ -72,6 +72,20 @@ execution.
 
 ---
 
+## Docker
+
+One container (nginx + FastAPI, non-root, port 8080), no external service and no `.env` needed:
+
+```bash
+docker build -t ops-manager-demo .
+docker run --rm -p 18086:8080 ops-manager-demo   # http://127.0.0.1:18086
+```
+
+nginx serves the build and proxies `/api` (prefix kept, as in `vite.config.js`); healthcheck at
+`/health/live`. State is in memory: restarting the container is a reset.
+
+---
+
 ## Tests
 
 ```bash
