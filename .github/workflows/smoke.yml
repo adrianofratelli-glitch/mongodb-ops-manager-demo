@@ -19,27 +19,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: repo
-      - name: .env a partir do secret (valores mascarados no log)
-        env:
-          POV_ENV: ${{ secrets.POV_ENV }}
-        run: |
-          if [ -z "$POV_ENV" ]; then echo "::error::secret POV_ENV ausente (rode ci/setup_secrets_nuvem.sh)"; exit 1; fi
-          python3 - <<'PY'
-          import os
-          out = []
-          for line in os.environ["POV_ENV"].splitlines():
-              s = line.strip()
-              if not s or s.startswith("#") or "=" not in s:
-                  continue
-              k, v = s.split("=", 1)
-              k = k.removeprefix("export ").strip(); v = v.strip()
-              if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
-                  v = v[1:-1]
-              if len(v) >= 4:
-                  print(f"::add-mask::{v}")
-              out.append(f"{k}={v}")
-          open(os.environ["RUNNER_TEMP"] + "/pov.env", "w").write("\n".join(out) + "\n")
-          PY
+      - name: PoV sem .env (roda sem serviço externo)
+        run: touch "$RUNNER_TEMP/pov.env"
       - name: build da imagem
         run: docker build -t pov-smoke repo
       - name: sobe o container
