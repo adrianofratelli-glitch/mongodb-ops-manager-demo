@@ -40,6 +40,7 @@ jobs:
       - run: npm run build:pages
       # UI end-to-end against the GitHub Pages mock (Playwright serves the build itself).
       # The "bridge" mode is left out: it spawns backend/.venv/bin/python by fixed path.
-      - run: npx playwright install --with-deps chromium
+      # sem --with-deps: a imagem do runner já tem as libs do Chrome; o apt do runner falhou por DNS em 2026-11-11
+      - run: npx playwright install chromium
       - run: VITE_USE_MOCK=1 npx vite build --outDir /tmp/opsm-dist-mock
       - run: node tests/e2e_ui.mjs mock /tmp/opsm-dist-mock
