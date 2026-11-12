@@ -111,8 +111,9 @@ separados, reaproveitados pelo navegador entre deploys.
 - **Laboratório real só no Performance Advisor, opcional** — é a tela em que
   "o índice ajuda" é uma afirmação sobre o banco, não sobre a interface, e a
   única que dá para provar em segundos com `explain`. Sem `MONGODB_URI` fica
-  desligado; com ele, escreve só em `opsmgr_lab*` e só remove os próprios
-  índices. Usa `LAB_LOCK` (não bloqueante, 409 se ocupado) em vez de
+  desligado; com ele, usa o banco `opsmgr_lab_test` por padrão, recusa
+  escrita em banco sem `_test` sem `ALLOW_DEMO_DB_WRITE=1`, exige o header
+  `X-Lab-Action: 1` nos POST e só remove os próprios índices. Usa `LAB_LOCK` (não bloqueante, 409 se ocupado) em vez de
   `STATE_LOCK` para um seed de ~13 s não travar as rotas da simulação; o
   registro no Activity Feed continua sob `STATE_LOCK`. ADR:
   [0001](../adr/0001-laboratorio-real-performance-advisor.md).

@@ -43,7 +43,7 @@ function Comparison({ result }) {
       {ratio && <Body style={{ marginBottom: spacing[200] }}>Docs examinados caíram <b>{ratio}×</b> ({fmt(before.docs_examined)} → {fmt(after.docs_examined)}); índice criado em {fmt(result.build_ms)} ms.</Body>}
       <DataTable columns={cols} rows={rows} />
       <details style={{ marginTop: spacing[200] }} open>
-        <summary style={{ cursor: 'pointer', fontSize: 12 }}>⌘ MQL executado no MongoDB real ({result.db})</summary>
+        <summary style={{ cursor: 'pointer', fontSize: 12 }}>⌘ Comandos executados no MongoDB real ({result.db})</summary>
         <pre style={{ margin: '8px 0 0', padding: 10, overflowX: 'auto', borderRadius: 8, background: '#03111a', fontSize: 11.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {[result.create_index_mql, result.mql].filter(Boolean).join('\n')}
         </pre>
@@ -101,7 +101,7 @@ export default function LabPanel({ toast }) {
           Os números acima são ilustrativos. Aqui não: o backend executa as mesmas formas de query num MongoDB de verdade,
           sobre coleções fictícias, e mostra o <code>explain("executionStats")</code> antes e depois do <code>createIndex</code>.
         </Description>
-        {!lab.enabled && <Banner variant="info">{lab.reason} Para ligar: defina <code>MONGODB_URI</code> no ambiente ou no <code>.env</code> da PoV (banco padrão <code>opsmgr_lab</code>).</Banner>}
+        {!lab.enabled && <Banner variant="info">{lab.reason} Para ligar: defina <code>MONGODB_URI</code> no ambiente ou no <code>.env</code> da PoV (banco padrão <code>opsmgr_lab_test</code>; banco sem <code>_test</code> exige <code>ALLOW_DEMO_DB_WRITE=1</code>).</Banner>}
         {lab.enabled && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button size="small" variant={lab.seeded ? 'default' : 'primary'} disabled={!!busy}

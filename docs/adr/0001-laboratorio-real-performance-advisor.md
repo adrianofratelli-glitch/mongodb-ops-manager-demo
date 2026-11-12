@@ -27,17 +27,28 @@ que dá para provar em segundos com `explain`.
    45.000, 6.200), mais os índices de base que a coluna "Index Used" diz que
    existem (`timestamp_1`, `category_1`).
 3. As formas de query ficam num arquivo só, `frontend/src/api/lab_scenarios.json`,
-   em Extended JSON, lido pelo backend (executa) e pelo mock (exibe o mesmo
-   MQL desligado). O texto do MQL é serializado igual nos dois
-   (`JSON.stringify` × `json.dumps(separators=(",", ":"))`) e um cenário
-   compartilhado prende isso.
+   em Extended JSON, lido pelo backend e pelo mock. O backend monta o
+   comando (`lab.explain_command`, `lab.create_index_command`; datas convertidas
+   por `bson.json_util`), executa esse dicionário com `db.command` e devolve o
+   mesmo dicionário serializado em sintaxe do mongosh (`lab.shell`: datas como
+   `ISODate(...)`), como `db.runCommand({...})`. O texto exibido é, portanto, o
+   comando que rodou, não uma reescrita em `find().sort()`. O mock serializa
+   igual (`shell` em `mock.js`) e um cenário compartilhado prende o texto.
 4. Medição por `explain` com `executionStats` antes e depois de `createIndex`,
    devolvendo plano, índice, docs/chaves examinados, docs devolvidos e tempo
-   no servidor, mais o MQL exato.
-5. Guardas: só escreve em bancos com prefixo `opsmgr_lab`; só remove índices
-   com prefixo `opsmgr_lab_`; a URI nunca sai do processo; falha de
-   infraestrutura vira estado (`enabled: false`) ou 502 sem detalhe cru.
-6. Concorrência: `LAB_LOCK` com aquisição não bloqueante (409 "ocupado") em
+   no servidor, mais os dois comandos executados.
+5. Guardas: banco padrão `opsmgr_lab_test`; o nome precisa casar
+   `^opsmgr_lab(_[a-z0-9]+)?$` (recusa `opsmgr_labprod`); seed, criação e
+   remoção de índice num banco que não termine em `_test` devolvem 403 sem
+   `ALLOW_DEMO_DB_WRITE=1` (regra do workspace para banco de demo), antes de
+   abrir conexão. Só remove índices com prefixo `opsmgr_lab_`; a URI nunca sai
+   do processo; falha de infraestrutura vira estado (`enabled: false`) ou 502
+   sem detalhe cru. As rotas POST exigem o header `X-Lab-Action: 1`: um POST
+   simples de outra origem (formulário, `fetch` sem preflight) não consegue
+   enviá-lo, e o CORS só libera o preflight para a origem do frontend.
+   O seed apaga `lab_meta` antes do drop, para um seed interrompido não deixar
+   o laboratório "pronto" pela metade.
+6. Concorrência: `LAB_LOCK` com aquisição não bloqueante (409 "ocupado"), também no explain, em
    vez de `STATE_LOCK`. O seed leva ~13 s pela rede; segurar `STATE_LOCK`
    esse tempo travaria todas as rotas da simulação. O Activity Feed continua
    sob `STATE_LOCK`.

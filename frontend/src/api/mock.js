@@ -67,10 +67,23 @@ const AGENT_SEED = '109.0.0.9285-1'
 const LAB_REASON = 'Build estático (GitHub Pages): sem backend nem MongoDB. O laboratório real roda só com o FastAPI local e MONGODB_URI.'
 const LAB_DISABLED = `Laboratório desligado: ${LAB_REASON}`
 const labIndexName = (s) => `opsmgr_lab_${s.id.replace('-', '_')}`
-const labMql = (s) => `db.${s.collection}.find(${JSON.stringify(s.filter)})${s.sort ? `.sort(${JSON.stringify(s.sort)})` : ''}${s.limit ? `.limit(${s.limit})` : ''}.explain("executionStats")`
+// Mesma sintaxe de mongosh do backend (lab.shell): datas viram ISODate.
+const shell = (v) => {
+  if (Array.isArray(v)) return `[${v.map(shell).join(',')}]`
+  if (v && typeof v === 'object') {
+    if (Object.keys(v).length === 1 && typeof v.$date === 'string') return `ISODate("${v.$date}")`
+    return `{${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}:${shell(x)}`).join(',')}}`
+  }
+  return JSON.stringify(v)
+}
+const labExplainCommand = (s) => ({
+  explain: { find: s.collection, filter: s.filter, ...(s.sort ? { sort: s.sort } : {}), ...(s.limit ? { limit: s.limit } : {}) },
+  verbosity: 'executionStats',
+})
+const labMql = (s) => `db.runCommand(${shell(labExplainCommand(s))})`
 const labScenarios = () => LAB.scenarios.map((s) => ({
   id: s.id, collection: s.collection, slow_ns: s.slow_ns, index: s.index, index_name: labIndexName(s), why: s.why,
-  mql: labMql(s), create_index_mql: `db.${s.collection}.createIndex(${JSON.stringify(s.index)}, { name: "${labIndexName(s)}" })`,
+  mql: labMql(s), create_index_mql: `db.runCommand(${shell({ createIndexes: s.collection, indexes: [{ key: s.index, name: labIndexName(s) }] })})`,
 }))
 const RESYNC_SECONDS = 25
 const ACK_MINUTES = 60
@@ -530,7 +543,7 @@ export const MockAPI = {
     return { ok: true, created: s, remaining: STATE.perf_index_suggestions }
   }),
 
-  lab: () => ok({ enabled: false, db: 'opsmgr_lab', reason: LAB_REASON, scenarios: labScenarios() }),
+  lab: () => ok({ enabled: false, db: 'opsmgr_lab_test', reason: LAB_REASON, scenarios: labScenarios() }),
   labSeed: () => fail(LAB_DISABLED, 503),
   // Mesma ordem do backend: cenário inexistente é 404 antes de checar se o lab está ligado.
   labExplain: (sid) => (LAB.scenarios.some((s) => s.id === sid) ? fail(LAB_DISABLED, 503) : fail(`Cenário ${String(sid).slice(0, 32)} não existe no laboratório.`, 404)),

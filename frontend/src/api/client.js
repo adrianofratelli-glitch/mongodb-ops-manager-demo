@@ -13,6 +13,9 @@ export const api = axios.create({
   timeout: 15000,
 })
 
+// Escritas do laboratório exigem este header (força preflight CORS; ver main.py::_lab_action).
+const LAB_HEADERS = { 'X-Lab-Action': '1' }
+
 // ── Endpoints tipados (camada de serviço — backend real via axios) ──
 const RealAPI = {
   meta: () => api.get('/api/meta').then((r) => r.data),
@@ -42,10 +45,10 @@ const RealAPI = {
   createIndex: (id) => api.post(`/api/perf-advisor/index/${encodeURIComponent(id)}`).then((r) => r.data),
   // Laboratório real: seed e createIndex atravessam a rede até o MongoDB, então o timeout é maior.
   lab: () => api.get('/api/lab', { timeout: 30000 }).then((r) => r.data),
-  labSeed: () => api.post('/api/lab/seed', null, { timeout: 180000 }).then((r) => r.data),
+  labSeed: () => api.post('/api/lab/seed', null, { timeout: 180000, headers: LAB_HEADERS }).then((r) => r.data),
   labExplain: (id) => api.get(`/api/lab/explain/${encodeURIComponent(id)}`, { timeout: 60000 }).then((r) => r.data),
-  labCreateIndex: (id) => api.post(`/api/lab/index/${encodeURIComponent(id)}`, null, { timeout: 120000 }).then((r) => r.data),
-  labReset: () => api.post('/api/lab/reset', null, { timeout: 60000 }).then((r) => r.data),
+  labCreateIndex: (id) => api.post(`/api/lab/index/${encodeURIComponent(id)}`, null, { timeout: 120000, headers: LAB_HEADERS }).then((r) => r.data),
+  labReset: () => api.post('/api/lab/reset', null, { timeout: 60000, headers: LAB_HEADERS }).then((r) => r.data),
 
   backup: () => api.get('/api/backup').then((r) => r.data),
   takeSnapshot: (cluster) => api.post(`/api/backup/snapshot?cluster=${encodeURIComponent(cluster)}`).then((r) => r.data),

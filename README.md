@@ -136,9 +136,10 @@ runs from reset, 360/768/1440 px layouts, `prefers-reduced-motion`).
 The one deliberate exception to "everything is simulated". When `MONGODB_URI` is
 set, `backend/lab.py`:
 
-1. **Populates** four synthetic collections in database `opsmgr_lab` (override
-   with `OPSMGR_LAB_DB`; the backend refuses any name that does not start with
-   `opsmgr_lab`): `orders` 12,400, `sessions` 8,900, `events` 45,000 and
+1. **Populates** four synthetic collections in database `opsmgr_lab_test`
+   (override with `OPSMGR_LAB_DB`; only `opsmgr_lab` or `opsmgr_lab_<suffix>` is
+   accepted, and any write to a database not ending in `_test` is refused unless
+   `ALLOW_DEMO_DB_WRITE=1`): `orders` 12,400, `sessions` 8,900, `events` 45,000 and
    `products` 6,200 documents, deterministic (seed 42), plus the two indexes the
    simulated table says already exist (`timestamp_1`, `category_1`).
 2. **Explains** the exact query shape behind each index suggestion
@@ -146,8 +147,12 @@ set, `backend/lab.py`:
    `explain("executionStats")`.
 3. **Creates the suggested index** (named `opsmgr_lab_ix_<n>`) and explains again,
    returning plan, index used, docs and keys examined, documents returned and
-   server time, plus the MQL that was run.
+   server time, plus the commands that ran, printed from the very dictionaries
+   sent to the server (`db.runCommand({...})`, dates as `ISODate(...)`).
 4. **Undoes** only its own indexes (`opsmgr_lab_` prefix); data stays.
+
+Write routes (`POST /api/lab/*`) require the `X-Lab-Action: 1` header, which
+the frontend sends; a plain cross-site POST cannot set it.
 
 Measured on 2026-11-12 against MongoDB 9.0.7 (`backend/tests/test_lab_live.py`):
 

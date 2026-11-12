@@ -225,8 +225,8 @@
       "steps": [
         {"get": "lab", "path": "enabled", "equals": false},
         {"get": "lab", "path": "scenarios.0.index_name", "equals": "opsmgr_lab_ix_1"},
-        {"get": "lab", "path": "scenarios.1.mql", "equals": "db.sessions.find({\"userId\":\"U0137\",\"expiresAt\":{\"$gt\":{\"$date\":\"2026-11-01T00:00:00Z\"}}}).explain(\"executionStats\")"},
-        {"get": "lab", "path": "scenarios.3.create_index_mql", "equals": "db.products.createIndex({\"category\":1,\"price\":1}, { name: \"opsmgr_lab_ix_4\" })"},
+        {"get": "lab", "path": "scenarios.1.mql", "equals": "db.runCommand({\"explain\":{\"find\":\"sessions\",\"filter\":{\"userId\":\"U0137\",\"expiresAt\":{\"$gt\":ISODate(\"2026-11-01T00:00:00Z\")}}},\"verbosity\":\"executionStats\"})"},
+        {"get": "lab", "path": "scenarios.3.create_index_mql", "equals": "db.runCommand({\"createIndexes\":\"products\",\"indexes\":[{\"key\":{\"category\":1,\"price\":1},\"name\":\"opsmgr_lab_ix_4\"}]})"},
         {"call": "labExplain", "args": ["ix-9"], "expect": {"status": 404, "contains": "não existe no laboratório"}},
         {"call": "labCreateIndex", "args": ["ix-9"], "expect": {"status": 404, "contains": "não existe no laboratório"}},
         {"call": "labExplain", "args": ["ix-1"], "expect": {"status": 503, "contains": "Laboratório desligado"}},

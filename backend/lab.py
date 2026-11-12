@@ -9,8 +9,10 @@ Advisor da demo aponta como lentas: `explain("executionStats")` antes e depois d
 
 Guardas:
 - Sem `MONGODB_URI`, o laboratório fica desligado (`enabled: false`) e nada quebra.
-- O backend só escreve em bancos cujo nome começa com `opsmgr_lab` (padrão
-  `opsmgr_lab`; os testes usam `opsmgr_lab_test`). Outro nome desliga o laboratório.
+- Banco padrão `opsmgr_lab_test`; o nome precisa ser `opsmgr_lab` ou
+  `opsmgr_lab_<sufixo>` (outro nome desliga o laboratório). Qualquer escrita
+  (seed, índice, reset) num banco que não termine em `_test` é recusada sem
+  `ALLOW_DEMO_DB_WRITE=1`.
 - Só toca as coleções do laboratório e só remove índices com o prefixo `opsmgr_lab_`.
 - A connection string nunca sai do processo: a API devolve só banco e versão do servidor.
 
@@ -34,7 +36,9 @@ SCENARIOS = {s["id"]: s for s in _SPEC["scenarios"]}
 REFERENCE = datetime(2026, 11, 1, tzinfo=timezone.utc)
 
 DB_PREFIX = "opsmgr_lab"
-DB_NAME_RE = re.compile(r"^opsmgr_lab[A-Za-z0-9_]{0,40}$")
+DEFAULT_DB = "opsmgr_lab_test"
+# Nome com âncora: `opsmgr_lab` ou `opsmgr_lab_<sufixo>` (recusa `opsmgr_labprod`).
+DB_NAME_RE = re.compile(r"^opsmgr_lab(_[a-z0-9]+)?$")
 INDEX_PREFIX = "opsmgr_lab_"
 SEED_VERSION = 1
 # Tamanhos iguais aos "Docs Examined" do seed simulado: o COLLSCAN medido no
@@ -79,18 +83,20 @@ class LabError(Exception):
 
 def config() -> dict:
     uri = os.environ.get("MONGODB_URI", "").strip()
-    db = os.environ.get("OPSMGR_LAB_DB", DB_PREFIX).strip() or DB_PREFIX
+    db = os.environ.get("OPSMGR_LAB_DB", DEFAULT_DB).strip() or DEFAULT_DB
     if not uri:
         return {"enabled": False, "db": db, "reason": "MONGODB_URI não definido: o laboratório real fica desligado e o resto da demo segue simulado."}
     if not DB_NAME_RE.fullmatch(db):
-        return {"enabled": False, "db": db, "reason": f'OPSMGR_LAB_DB="{db[:64]}" recusado: o laboratório só escreve em bancos com prefixo {DB_PREFIX}.'}
+        return {"enabled": False, "db": db, "reason": f'OPSMGR_LAB_DB="{db[:64]}" recusado: use {DB_PREFIX} ou {DB_PREFIX}_<sufixo> (minúsculas e dígitos).'}
     return {"enabled": True, "db": db, "uri": uri, "reason": None}
 
 
-def _require() -> tuple:
+def _require(write: bool = False) -> tuple:
     cfg = config()
     if not cfg["enabled"]:
         raise LabError(503, f"Laboratório desligado: {cfg['reason']}")
+    if write and not cfg["db"].endswith("_test") and os.environ.get("ALLOW_DEMO_DB_WRITE") != "1":
+        raise LabError(403, f'Escrita recusada no banco "{cfg["db"]}": só bancos *_test, ou defina ALLOW_DEMO_DB_WRITE=1.')
     from pymongo import MongoClient  # import tardio: a demo simulada não precisa do driver
 
     if _CLIENT["uri"] != cfg["uri"]:
@@ -108,36 +114,44 @@ def _scenario(sid: str) -> dict:
     return s
 
 
-def _parsed(s: dict):
-    from bson import json_util
-
-    filt = json_util.loads(json.dumps(s["filter"]))
-    sort = list(s["sort"].items()) if s.get("sort") else None
-    return filt, sort
-
-
 def index_name(s: dict) -> str:
     return INDEX_PREFIX + s["id"].replace("-", "_")
 
 
-def _js(value) -> str:
-    """Mesma serialização do JSON.stringify do mock (paridade do texto exibido)."""
-    return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+def explain_command(s: dict) -> dict:
+    """O comando que vai para o servidor (`db.command`), com datas já convertidas."""
+    from bson import json_util
+
+    find = {"find": s["collection"], "filter": json_util.loads(json.dumps(s["filter"]))}
+    if s.get("sort"):
+        find["sort"] = dict(s["sort"])
+    if s.get("limit"):
+        find["limit"] = s["limit"]
+    return {"explain": find, "verbosity": "executionStats"}
+
+
+def create_index_command(s: dict) -> dict:
+    return {"createIndexes": s["collection"], "indexes": [{"key": dict(s["index"]), "name": index_name(s)}]}
+
+
+def shell(value) -> str:
+    """Sintaxe do mongosh para o comando executado (datas viram ISODate).
+    Mesma serialização de `shell()` no mock (paridade do texto exibido)."""
+    if isinstance(value, dict):
+        return "{" + ",".join(f"{json.dumps(k, ensure_ascii=False)}:{shell(v)}" for k, v in value.items()) + "}"
+    if isinstance(value, (list, tuple)):
+        return "[" + ",".join(shell(v) for v in value) + "]"
+    if isinstance(value, datetime):
+        return f'ISODate("{value.strftime("%Y-%m-%dT%H:%M:%SZ")}")'
+    return json.dumps(value, ensure_ascii=False)
 
 
 def mql(s: dict) -> str:
-    """O comando exato, em sintaxe do mongosh, que o laboratório executa."""
-    parts = [f"db.{s['collection']}.find({_js(s['filter'])})"]
-    if s.get("sort"):
-        parts.append(f".sort({_js(s['sort'])})")
-    if s.get("limit"):
-        parts.append(f".limit({s['limit']})")
-    parts.append('.explain("executionStats")')
-    return "".join(parts)
+    return f"db.runCommand({shell(explain_command(s))})"
 
 
 def create_index_mql(s: dict) -> str:
-    return f"db.{s['collection']}.createIndex({_js(s['index'])}, {{ name: \"{index_name(s)}\" }})"
+    return f"db.runCommand({shell(create_index_command(s))})"
 
 
 def public_scenarios() -> list:
@@ -201,12 +215,14 @@ def _acquire():
 
 def seed(force: bool = False) -> dict:
     """Recria as quatro coleções fictícias. Idempotente: sem `force`, não refaz um seed válido."""
-    client, db, cfg = _require()
+    client, db, cfg = _require(write=True)
     _acquire()
     try:
         meta = db.lab_meta.find_one({"_id": "seed"})
         if meta and meta.get("version") == SEED_VERSION and not force:
             return {"ok": True, "skipped": True, "counts": meta["counts"], "seconds": 0}
+        # Invalida antes do drop: um seed interrompido não deixa o lab "pronto" pela metade.
+        db.lab_meta.delete_one({"_id": "seed"})
         started = time.time()
         rnd = random.Random(42)
         counts = {}
@@ -239,13 +255,7 @@ def _walk_plan(node, stages: list, indexes: list):
 
 
 def _explain(db, s: dict) -> dict:
-    filt, sort = _parsed(s)
-    cmd = {"find": s["collection"], "filter": filt}
-    if sort:
-        cmd["sort"] = dict(sort)
-    if s.get("limit"):
-        cmd["limit"] = s["limit"]
-    out = db.command({"explain": cmd, "verbosity": "executionStats"})
+    out = db.command(explain_command(s))
     stages, indexes = [], []
     _walk_plan(out.get("queryPlanner", {}).get("winningPlan", {}), stages, indexes)
     ex = out.get("executionStats", {})
@@ -271,13 +281,17 @@ def _require_seed(db):
 def explain(sid: str) -> dict:
     s = _scenario(sid)
     _, db, cfg = _require()
-    _require_seed(db)
-    return {"scenario": sid, "db": cfg["db"], "mql": mql(s), "result": _explain(db, s)}
+    _acquire()  # não mede no meio de um seed, createIndex ou reset
+    try:
+        _require_seed(db)
+        return {"scenario": sid, "db": cfg["db"], "mql": mql(s), "result": _explain(db, s)}
+    finally:
+        LAB_LOCK.release()
 
 
 def create_index(sid: str) -> dict:
     s = _scenario(sid)
-    _, db, cfg = _require()
+    _, db, cfg = _require(write=True)
     _acquire()
     try:
         _require_seed(db)
@@ -286,7 +300,7 @@ def create_index(sid: str) -> dict:
             raise LabError(409, f"O índice {index_name(s)} já existe no laboratório; use \"Desfazer índices\" para medir de novo.")
         before = _explain(db, s)
         started = time.time()
-        coll.create_index(list(s["index"].items()), name=index_name(s))
+        db.command(create_index_command(s))
         build_ms = round((time.time() - started) * 1000)
         after = _explain(db, s)
         return {"scenario": sid, "db": cfg["db"], "mql": mql(s), "create_index_mql": create_index_mql(s),
@@ -297,7 +311,7 @@ def create_index(sid: str) -> dict:
 
 def reset_indexes() -> dict:
     """Remove só os índices criados pelo laboratório (prefixo opsmgr_lab_)."""
-    _, db, _ = _require()
+    _, db, _ = _require(write=True)
     _acquire()
     try:
         dropped = []

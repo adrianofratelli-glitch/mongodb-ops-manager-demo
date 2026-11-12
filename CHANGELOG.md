@@ -2,10 +2,10 @@
 
 ## 1.3.0 (2026-11-12)
 
-- Performance Advisor lab (optional, real MongoDB): with `MONGODB_URI` set, `backend/lab.py` seeds four deterministic synthetic collections in `opsmgr_lab*` and runs each suggested query with `explain("executionStats")` before and after a real `createIndex` (`/api/lab/*`, "Prova no MongoDB real" panel). Writes only to databases prefixed `opsmgr_lab`, drops only its own `opsmgr_lab_*` indexes, never returns the connection string. Off (with a reason) when the URI is missing, in Docker without `--env-file` and in the GitHub Pages mock. ADR `docs/adr/0001-laboratorio-real-performance-advisor.md`.
+- Performance Advisor lab (optional, real MongoDB): with `MONGODB_URI` set, `backend/lab.py` seeds four deterministic synthetic collections in `opsmgr_lab_test` (default) and runs each suggested query with `explain("executionStats")` before and after a real `createIndexes` (`/api/lab/*`, "Prova no MongoDB real" panel); the commands shown are the ones sent to the server (`db.runCommand`, `ISODate`). Database name must be `opsmgr_lab` or `opsmgr_lab_<suffix>`; writes to a database not ending in `_test` need `ALLOW_DEMO_DB_WRITE=1`; POST routes require `X-Lab-Action: 1`; drops only its own `opsmgr_lab_*` indexes; never returns the connection string. Off (with a reason) when the URI is missing, in Docker without `--env-file` and in the GitHub Pages mock. ADR `docs/adr/0001-laboratorio-real-performance-advisor.md`.
 - Simulated Performance Advisor is now coherent: query shapes match the suggested indexes (ESR), slow queries link to their suggestion, and the simulated Create Index switches the linked query from COLLSCAN to the new index with the docs-examined numbers measured by the lab.
 - Platform shown as Ops Manager 9.0.1; agents `109.0.0.9285-1` → "Upgrade All" to `109.0.1.9309-1` (official release notes); release series catalog includes 9.0 (8.0 → 9.0 allowed, 7.0 → 9.0 refused); "Major → x.0.0" upgrade button; 9.0.7 in New Deployment.
-- Tests: 52 → 62 offline backend tests (+6 live, opt-in with `OPSMGR_LIVE=1`), mock parity 14 → 17 scenarios.
+- Tests: 52 → 65 offline backend tests (+6 live, opt-in with `OPSMGR_LIVE=1`), mock parity 14 → 17 scenarios.
 
 ## Unreleased (before 1.3.0)
 

@@ -37,7 +37,7 @@ Todo botão chama `API.<método>` de `frontend/src/api/client.js` (`RealAPI`, li
 
 | Tela / botão | Componente (arquivo:linha) | Chamada HTTP | Handler / função de negócio | Estado que muda (em memória) |
 |---|---|---|---|---|
-| Abrir o app (contadores do menu, nome do projeto) | `App.jsx:25` (dashboard, alerts, perf), `App.jsx:35` (meta) | `GET /api/dashboard`, `/api/alerts`, `/api/perf-advisor`, `/api/meta` | `main.py:189 get_dashboard`, `:1100 get_alerts`, `:816 get_perf_advisor`, `:184 get_meta` | leitura |
+| Abrir o app (contadores do menu, nome do projeto) | `App.jsx:25` (dashboard, alerts, perf), `App.jsx:35` (meta) | `GET /api/dashboard`, `/api/alerts`, `/api/perf-advisor`, `/api/meta` | `main.py:189 get_dashboard`, `:1108 get_alerts`, `:816 get_perf_advisor`, `:184 get_meta` | leitura |
 | Dashboard: abrir / "Refresh" | `Dashboard.jsx:55`, botão `:68` | `GET /api/dashboard` | `main.py:189 get_dashboard` (usa `_top_alert` :364) | leitura |
 | Dashboard: "Add Deployment" / link "Ver alerta" | `Dashboard.jsx:69`, `:76` | nenhuma (só `navigate`) | n/a | n/a |
 | All Clusters: abrir a lista | `Deployments.jsx:143` | `GET /api/clusters` | `main.py:378 list_clusters` | leitura |
@@ -62,32 +62,32 @@ Todo botão chama `API.<método>` de `frontend/src/api/client.js` (`RealAPI`, li
 | Real-Time: "Kill" | `Realtime.jsx:58,103` | `POST /api/realtime/{cid}/kill/{opid}` | `main.py:799 kill_op` | remove a operação de `_RT_OPS` |
 | Performance Advisor: abrir / "Re-scan" | `PerfAdvisor.jsx:19,49` | `GET /api/perf-advisor` | `main.py:816 get_perf_advisor` | leitura (dados do seed, "simulated") |
 | Performance Advisor: "Create Index" | `PerfAdvisor.jsx:25,35` | `POST /api/perf-advisor/index/{sid}` | `main.py:838 create_index` (tira a sugestão e troca a slow query ligada por `suggestion_id`; **não cria índice**) | `STATE["perf_index_suggestions"]`, `STATE["perf_slow_queries"]` |
-| Performance Advisor: painel "Prova no MongoDB real" | `PerfAdvisor.jsx:71` -> `LabPanel.jsx` | `GET /api/lab` | `main.py:871 lab_status` -> `lab.py:150 status` | leitura (MongoDB real, se `MONGODB_URI`) |
-| Laboratório: "Popular laboratório" | `LabPanel.jsx` | `POST /api/lab/seed` | `main.py:876 lab_seed` -> `lab.py:202 seed` | **MongoDB**: recria `orders`, `sessions`, `events`, `products` em `opsmgr_lab*` |
-| Laboratório: "Explain" | `LabPanel.jsx` | `GET /api/lab/explain/{sid}` | `main.py:885 lab_explain` -> `lab.py:271 explain` (`_explain` :241) | **MongoDB**: `explain` executionStats (leitura) |
-| Laboratório: "Criar índice real" | `LabPanel.jsx` | `POST /api/lab/index/{sid}` | `main.py:890 lab_create_index` -> `lab.py:278 create_index` | **MongoDB**: `createIndex` `opsmgr_lab_ix_<n>` + explain antes/depois |
-| Laboratório: "Desfazer índices do lab" (com confirmação) | `LabPanel.jsx` | `POST /api/lab/reset` | `main.py:898 lab_reset` -> `lab.py:298 reset_indexes` | **MongoDB**: `dropIndex` só de `opsmgr_lab_*` |
-| Backup: abrir | `Backup.jsx:20` | `GET /api/backup` | `main.py:943 get_backup` (`_pit_windows` :915) | leitura |
-| Backup: "Take Snapshot" | `Backup.jsx:28,69` | `POST /api/backup/snapshot?cluster=` | `main.py:956 take_snapshot` (recusa standalone) | `STATE` snapshots |
-| Backup: "Delete" snapshot | `Backup.jsx:33,61` | `DELETE /api/backup/snapshot/{sid}` | `main.py:977 delete_snapshot` | remove snapshot |
-| Backup: "Restore" na linha | `Backup.jsx:38,60` | `POST /api/restore` | `main.py:1013 start_restore` | cria job de restore |
-| Restore: abrir (janela PIT) | `Restore.jsx:32-35` | `GET /api/restore`, `/api/clusters`, `/api/backup` | `main.py:1002 get_restore_jobs`, `:368`, `:877` | leitura (jobs avançam via `_update_restore_jobs` :318) |
-| Restore: "Start Point-in-Time Restore" | `Restore.jsx:57,106` | `POST /api/restore` | `main.py:1013 start_restore` (`RESTORE_RUNNING_SECONDS`=3, `RESTORE_TOTAL_SECONDS`=9; 409 se já houver job) | job `queued -> running -> completed` |
-| Alerts: abrir | `Alerts.jsx:19` | `GET /api/alerts` | `main.py:1100 get_alerts` (`_expire_acks` :1089) | leitura |
-| Alerts: "Acknowledge" | `Alerts.jsx:30,71` | `POST /api/alerts/{aid}/acknowledge` | `main.py:1110 acknowledge_alert` (silencia 60 min) | alerta ack |
-| Alerts: "Resolve" | `Alerts.jsx:25,72` | `POST /api/alerts/{aid}/resolve` | `main.py:1125 resolve_alert` | remove de `alerts_open` |
-| Alerts: "Delete" config | `Alerts.jsx:36,46` | `DELETE /api/alerts/configs/{cfg_id}` | `main.py:1150 delete_alert_config` | remove config |
-| (sem botão) criar config de alerta | `client.js` tem `addAlertConfig`, nenhuma tela chama | `POST /api/alerts/configs` | `main.py:1137 add_alert_config` | n/a |
-| Database Users: "Create User" / "Delete" | `Users.jsx:30,77` / `:34,48` | `POST /api/users` / `DELETE /api/users/{name}` | `main.py:1168 add_user` / `:1183 delete_user` | `STATE["users"]` |
+| Performance Advisor: painel "Prova no MongoDB real" | `PerfAdvisor.jsx:71` -> `LabPanel.jsx` | `GET /api/lab` | `main.py:879 lab_status` -> `lab.py:164 status` | leitura (MongoDB real, se `MONGODB_URI`) |
+| Laboratório: "Popular laboratório" | `LabPanel.jsx` | `POST /api/lab/seed` | `main.py:884 lab_seed` -> `lab.py:216 seed` | **MongoDB**: recria `orders`, `sessions`, `events`, `products` em `opsmgr_lab*` |
+| Laboratório: "Explain" | `LabPanel.jsx` | `GET /api/lab/explain/{sid}` | `main.py:893 lab_explain` -> `lab.py:281 explain` (`_explain` :257) | **MongoDB**: `explain` executionStats (leitura) |
+| Laboratório: "Criar índice real" | `LabPanel.jsx` | `POST /api/lab/index/{sid}` | `main.py:898 lab_create_index` -> `lab.py:292 create_index`; header `X-Lab-Action` em `main.py::_lab_action` | **MongoDB**: `createIndex` `opsmgr_lab_ix_<n>` + explain antes/depois |
+| Laboratório: "Desfazer índices do lab" (com confirmação) | `LabPanel.jsx` | `POST /api/lab/reset` | `main.py:906 lab_reset` -> `lab.py:312 reset_indexes` | **MongoDB**: `dropIndex` só de `opsmgr_lab_*` |
+| Backup: abrir | `Backup.jsx:20` | `GET /api/backup` | `main.py:951 get_backup` (`_pit_windows` :923) | leitura |
+| Backup: "Take Snapshot" | `Backup.jsx:28,69` | `POST /api/backup/snapshot?cluster=` | `main.py:964 take_snapshot` (recusa standalone) | `STATE` snapshots |
+| Backup: "Delete" snapshot | `Backup.jsx:33,61` | `DELETE /api/backup/snapshot/{sid}` | `main.py:985 delete_snapshot` | remove snapshot |
+| Backup: "Restore" na linha | `Backup.jsx:38,60` | `POST /api/restore` | `main.py:1021 start_restore` | cria job de restore |
+| Restore: abrir (janela PIT) | `Restore.jsx:32-35` | `GET /api/restore`, `/api/clusters`, `/api/backup` | `main.py:1010 get_restore_jobs`, `:378`, `:951` | leitura (jobs avançam via `_update_restore_jobs` :318) |
+| Restore: "Start Point-in-Time Restore" | `Restore.jsx:57,106` | `POST /api/restore` | `main.py:1021 start_restore` (`RESTORE_RUNNING_SECONDS`=3, `RESTORE_TOTAL_SECONDS`=9; 409 se já houver job) | job `queued -> running -> completed` |
+| Alerts: abrir | `Alerts.jsx:19` | `GET /api/alerts` | `main.py:1108 get_alerts` (`_expire_acks` :1097) | leitura |
+| Alerts: "Acknowledge" | `Alerts.jsx:30,71` | `POST /api/alerts/{aid}/acknowledge` | `main.py:1118 acknowledge_alert` (silencia 60 min) | alerta ack |
+| Alerts: "Resolve" | `Alerts.jsx:25,72` | `POST /api/alerts/{aid}/resolve` | `main.py:1133 resolve_alert` | remove de `alerts_open` |
+| Alerts: "Delete" config | `Alerts.jsx:36,46` | `DELETE /api/alerts/configs/{cfg_id}` | `main.py:1158 delete_alert_config` | remove config |
+| (sem botão) criar config de alerta | `client.js` tem `addAlertConfig`, nenhuma tela chama | `POST /api/alerts/configs` | `main.py:1145 add_alert_config` | n/a |
+| Database Users: "Create User" / "Delete" | `Users.jsx:30,77` / `:34,48` | `POST /api/users` / `DELETE /api/users/{name}` | `main.py:1176 add_user` / `:1191 delete_user` | `STATE["users"]` |
 | Database Users: "Reset Pw" | `Users.jsx:47` | nenhuma (só toast) | n/a | n/a |
-| Custom Roles: "Create Role" / "Delete" | `Roles.jsx:29,62` / `:33,42` | `POST /api/roles` / `DELETE /api/roles/{name}` | `main.py:1198 add_role` / `:1208 delete_role` | `STATE["roles"]` |
-| Authentication: listar / "Remove" IP | `Auth.jsx:28`, `:34,40` | `GET /api/security/ip` / `DELETE /api/security/ip?ip=` | `main.py:1218 get_ips` / `:1240 delete_ip` | lista de IPs |
+| Custom Roles: "Create Role" / "Delete" | `Roles.jsx:29,62` / `:33,42` | `POST /api/roles` / `DELETE /api/roles/{name}` | `main.py:1206 add_role` / `:1216 delete_role` | `STATE["roles"]` |
+| Authentication: listar / "Remove" IP | `Auth.jsx:28`, `:34,40` | `GET /api/security/ip` / `DELETE /api/security/ip?ip=` | `main.py:1226 get_ips` / `:1248 delete_ip` | lista de IPs |
 | Authentication: "Rotate TLS Certificates" | `Auth.jsx:62` | nenhuma (só toast) | n/a | n/a |
-| (sem botão) adicionar IP | `client.js` tem `addIp`, nenhuma tela chama | `POST /api/security/ip` | `main.py:1230 add_ip` (valida CIDR) | n/a |
-| Audit Log: abrir / exportar CSV | `Audit.jsx:16`, `:34` | `GET /api/audit` | `main.py:1251 get_audit` | leitura |
-| Activity Feed: abrir / exportar CSV | `Activity.jsx:13`, `:36` | `GET /api/activity` | `main.py:1259 get_activity` (`_log_activity` :1263 grava) | leitura |
-| Project Settings: "Reset Demo" (com confirmação) | `Settings.jsx:20,39` | `POST /api/reset` | `main.py:1268 reset_demo` (`data.seed()` + limpa `_WALKS`, `_RT_OPS`) | volta 100% ao seed |
-| Gaveta "Ver chamada simulada" | `App.jsx:41,64` + `QueryDetails.jsx`; evento disparado em `client.js:89,99` | nenhuma | n/a | só mostra a última chamada (operação, args, tempo, modo "mock local"/"FastAPI local") |
+| (sem botão) adicionar IP | `client.js` tem `addIp`, nenhuma tela chama | `POST /api/security/ip` | `main.py:1238 add_ip` (valida CIDR) | n/a |
+| Audit Log: abrir / exportar CSV | `Audit.jsx:16`, `:34` | `GET /api/audit` | `main.py:1259 get_audit` | leitura |
+| Activity Feed: abrir / exportar CSV | `Activity.jsx:13`, `:36` | `GET /api/activity` | `main.py:1267 get_activity` (`_log_activity` :1271 grava) | leitura |
+| Project Settings: "Reset Demo" (com confirmação) | `Settings.jsx:20,39` | `POST /api/reset` | `main.py:1276 reset_demo` (`data.seed()` + limpa `_WALKS`, `_RT_OPS`) | volta 100% ao seed |
+| Gaveta "Ver chamada simulada" | `App.jsx:41,64` + `QueryDetails.jsx`; evento disparado em `client.js:92,102` | nenhuma | n/a | só mostra a última chamada (operação, args, tempo, modo "mock local"/"FastAPI local") |
 
 Saúde: `GET /health/live` (`main.py:50`).
 
@@ -99,7 +99,7 @@ Saúde: `GET /health/live` (`main.py:50`).
 |---|---|---|
 | Totais do dashboard (healthy/warning, hosts) | `backend/main.py::get_dashboard` (:189) | `sum(...)` / list comprehension sobre `STATE["clusters"]` |
 | Alerta mais severo | `main.py::_top_alert` (:364) | `sorted(...)[0]` sobre `alerts_open` |
-| Janela de PIT e tamanhos de backup | `main.py::_pit_windows` (:915), `_size_gb` (:842), `get_backup` (:877) | min/max/soma em Python |
+| Janela de PIT e tamanhos de backup | `main.py::_pit_windows` (:923), `_size_gb` (:916), `get_backup` (:951) | min/max/soma em Python |
 | "Create Index" do Performance Advisor | `main.py::create_index` (:838) | remove item da lista em memória |
 | Estado inicial | `backend/data.py::seed` (:19) lendo `frontend/src/api/seed.json` | `json.load` + `copy.deepcopy` |
 
@@ -108,8 +108,8 @@ Se perguntarem "onde está a query que popula a tela": é `STATE` em memória, c
 ## 4. Compartilhado × só desta PoV
 
 - **`_shared`**: nenhum (sem import de `_shared` no backend nem no frontend; conferido). O `frontend/src/pov-signature.css` é o CSS de marca do portfólio (não confirmei no repo se é cópia sincronizada de `_shared/ui`).
-- **Variáveis de ambiente**: o backend só lê as do laboratório, em `lab.py:80 config`: `MONGODB_URI` (liga o laboratório) e `OPSMGR_LAB_DB` (padrão `opsmgr_lab`; recusado fora do prefixo). Lidas do ambiente ou do `.env` da raiz (`lab.py:54 _load_dotenv`, sem sobrescrever o ambiente); sem `.env.example`. Frontend, só em tempo de build: `VITE_USE_MOCK` (liga o mock, `client.js:6`), `VITE_API_URL` (base da API em produção, `client.js:10`), `VITE_BASE` (prefixo do GitHub Pages, `vite.config.js`). `start.sh`: `POV_DEV=1` (HMR).
-- **Bancos/coleções**: só o do laboratório (`opsmgr_lab`; testes live em `opsmgr_lab_test`): `orders`, `sessions`, `events`, `products`, `lab_meta`.
+- **Variáveis de ambiente**: o backend só lê as do laboratório, em `lab.py:84 config`: `MONGODB_URI` (liga o laboratório) e `OPSMGR_LAB_DB` (padrão `opsmgr_lab_test`; só `opsmgr_lab` ou `opsmgr_lab_<sufixo>`) e `ALLOW_DEMO_DB_WRITE` (libera escrita em banco sem `_test`). Lidas do ambiente ou do `.env` da raiz (`lab.py:58 _load_dotenv`, sem sobrescrever o ambiente); sem `.env.example`. Frontend, só em tempo de build: `VITE_USE_MOCK` (liga o mock, `client.js:6`), `VITE_API_URL` (base da API em produção, `client.js:10`), `VITE_BASE` (prefixo do GitHub Pages, `vite.config.js`). `start.sh`: `POV_DEV=1` (HMR).
+- **Bancos/coleções**: só o do laboratório (padrão e testes live em `opsmgr_lab_test`): `orders`, `sessions`, `events`, `products`, `lab_meta`.
 - **Chamadas externas**: só o MongoDB do laboratório, quando ligado. Sem LLM/Gateway, Voyage, Langfuse. Os dados são fictícios (`seed.json` e gerador determinístico em `lab.py`).
 - **Dois "backends"**: `backend/main.py` (modo real local) e `frontend/src/api/mock.js` (modo estático do GitHub Pages). As regras estão duplicadas de propósito; `frontend/tests/mock_parity.mjs` e `backend/tests/scenarios_adversarial.json` garantem que os dois se comportam igual. Mudou regra no Python? Mude no `mock.js` também.
 
@@ -117,7 +117,7 @@ Se perguntarem "onde está a query que popula a tela": é `STATE` em memória, c
 
 - Dados iniciais (clusters, alertas, usuários, sugestões do advisor) -> `frontend/src/api/seed.json` (vale para o backend e para o mock).
 - Uma regra de negócio (ex.: o que bloqueia um upgrade) -> `backend/main.py` (`_check_upgrade` :259, `_busy_reason` :355) **e** o equivalente em `frontend/src/api/mock.js`.
-- Tempos simulados (resync, upgrade por nó, restore, ack) -> constantes em `backend/main.py` (`RESYNC_SECONDS` :56, `UPGRADE_SECONDS_PER_NODE` :55, `UPGRADE_SECONDS_PER_NODE`, `RESTORE_RUNNING_SECONDS`/`RESTORE_TOTAL_SECONDS` :993-994, `ACK_MINUTES` :1086).
+- Tempos simulados (resync, upgrade por nó, restore, ack) -> constantes em `backend/main.py` (`RESYNC_SECONDS` :56, `UPGRADE_SECONDS_PER_NODE` :55, `UPGRADE_SECONDS_PER_NODE`, `RESTORE_RUNNING_SECONDS`/`RESTORE_TOTAL_SECONDS` :1001-1002, `ACK_MINUTES` :1094).
 - Itens do menu lateral -> `frontend/src/lib/sections.js` e o mapa em `frontend/src/pages/index.js`.
 - Texto/colunas de uma tela -> `frontend/src/pages/<Tela>.jsx`.
 - Adicionar rota -> `backend/main.py` (decorator `@app`), método em `frontend/src/api/client.js` (`RealAPI`) e em `mock.js`.
@@ -138,7 +138,7 @@ Comandos (README): `backend/.venv/bin/pytest -q backend/tests`; `(cd frontend &&
 - `backend/tests/test_restore_lifecycle.py` — apagar origem/destino durante restore, job que perde o destino, reset no meio do job.
 - `backend/tests/test_scenarios_adversarial.py` — executa `scenarios_adversarial.json` contra o FastAPI.
 - `backend/tests/test_cors.py` — origens permitidas; `asgi_bridge.py` é apoio (ponte ASGI para o E2E).
-- `backend/tests/test_lab.py` — laboratório sem rede: desligado sem URI, guarda do prefixo `opsmgr_lab`, falha de infra sem vazar URI, leitor de plano (clássico e SBE), MQL e seed determinístico.
+- `backend/tests/test_lab.py` — laboratório sem rede: desligado sem URI, nome do banco com âncora, escrita sem `_test` exige `ALLOW_DEMO_DB_WRITE`, header `X-Lab-Action` nos POST, falha de infra sem vazar URI, leitor de plano (clássico e SBE), MQL e seed determinístico.
 - `backend/tests/test_lab_live.py` — laboratório contra MongoDB real em `opsmgr_lab_test` (só com `OPSMGR_LIVE=1` e `MONGODB_URI`): COLLSCAN/SORT antes, IXSCAN depois, docs examinados ≥ 10× menores, reset só dos índices do lab.
 - `backend/tests/conftest.py` — força `MONGODB_URI` vazio na suíte offline (exceto testes `live`).
 - `frontend/tests/mock_parity.mjs` — mesmos cenários contra o `MockAPI`; reset do mock = seed.

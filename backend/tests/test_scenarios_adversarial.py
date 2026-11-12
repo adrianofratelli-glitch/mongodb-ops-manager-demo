@@ -99,7 +99,9 @@ def test_scenario(scenario, clock):
                 assert len(got) == step["length"], where
             continue
         method, url, body = CALLS[step["call"]](*step["args"])
-        response = getattr(client, method)(url, json=body) if body is not None else getattr(client, method)(url)
+        # Escritas do laboratório exigem o header que o frontend envia (client.js LAB_HEADERS).
+        headers = {"X-Lab-Action": "1"} if url.startswith("/api/lab/") and method == "post" else None
+        response = getattr(client, method)(url, json=body, headers=headers) if body is not None else getattr(client, method)(url, headers=headers)
         expect = step["expect"]
         if expect == "ok":
             assert response.status_code == 200, f"{where} → {response.status_code} {response.text}"

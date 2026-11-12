@@ -20,7 +20,7 @@ from ipaddress import ip_network
 from threading import RLock
 from typing import Literal, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -867,12 +867,20 @@ def _lab_call(fn, *args):
         raise HTTPException(502, f"MongoDB do laboratório falhou ({type(error).__name__}); a demo simulada continua.") from None
 
 
+def _lab_action(x_lab_action: Optional[str] = Header(default=None)):
+    """As rotas que escrevem no MongoDB exigem um header próprio: um POST simples
+    (form ou <img>/fetch sem preflight) de outra origem não consegue enviá-lo, e
+    o CORS só libera o preflight para a origem do frontend."""
+    if x_lab_action != "1":
+        raise HTTPException(403, "Ação do laboratório exige o header X-Lab-Action: 1.")
+
+
 @app.get("/api/lab")
 def lab_status():
     return _lab_call(lab.status)
 
 
-@app.post("/api/lab/seed")
+@app.post("/api/lab/seed", dependencies=[Depends(_lab_action)])
 def lab_seed(force: bool = False):
     out = _lab_call(lab.seed, force)
     if not out.get("skipped"):
@@ -886,7 +894,7 @@ def lab_explain(sid: str):
     return _lab_call(lab.explain, sid)
 
 
-@app.post("/api/lab/index/{sid}")
+@app.post("/api/lab/index/{sid}", dependencies=[Depends(_lab_action)])
 def lab_create_index(sid: str):
     out = _lab_call(lab.create_index, sid)
     with STATE_LOCK:
@@ -894,7 +902,7 @@ def lab_create_index(sid: str):
     return out
 
 
-@app.post("/api/lab/reset")
+@app.post("/api/lab/reset", dependencies=[Depends(_lab_action)])
 def lab_reset():
     out = _lab_call(lab.reset_indexes)
     with STATE_LOCK:

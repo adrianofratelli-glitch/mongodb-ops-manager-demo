@@ -113,12 +113,13 @@ Abaixo, o painel **"Prova no MongoDB real"** (`frontend/src/components/LabPanel.
 - Desligado (sem `MONGODB_URI`, ou build estático do GitHub Pages): banner
   com o motivo e como ligar; a tabela de cenários aparece com os botões
   desabilitados.
-- Ligado: selo com versão do servidor e banco (`opsmgr_lab`). "Popular
+- Ligado: selo com versão do servidor e banco (`opsmgr_lab_test` por padrão). "Popular
   laboratório" cria as coleções fictícias (~13 s pela rede; o botão mostra
   "Populando…"). Por sugestão: "Explain" mostra o plano atual; "Criar índice
   real" roda explain → `createIndex` → explain e abre a comparação antes ×
   depois (plano vencedor, índice usado, docs e chaves examinados, docs
-  devolvidos, tempo no servidor) com a razão de redução e o MQL exato.
+  devolvidos, tempo no servidor) com a razão de redução e os comandos
+  executados (`db.runCommand({...})`, datas como `ISODate`).
   "Desfazer índices do lab" (com `ConfirmationModal`) remove só os índices
   `opsmgr_lab_*`, para repetir a medição.
 
