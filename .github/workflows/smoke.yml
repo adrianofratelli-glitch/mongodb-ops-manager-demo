@@ -28,7 +28,9 @@ jobs:
       - name: health contra o Atlas real
         run: |
           for _ in $(seq 1 60); do
-            if curl -fsS -o /dev/null "http://127.0.0.1:8080/health/live"; then echo "health ok"; exit 0; fi
+            if curl -fsS -o /dev/null "http://127.0.0.1:8080/health/live"; then
+              echo "health ok"; exit 0
+            fi
             sleep 3
           done
           echo "::error::health /health/live não respondeu em 3 min"
