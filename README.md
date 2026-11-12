@@ -81,6 +81,15 @@ docker build -t ops-manager-demo .
 docker run --rm -p 18086:8080 ops-manager-demo   # http://127.0.0.1:18086
 ```
 
+Prebuilt image (published to GHCR on every push to `main` that touches the image):
+
+```bash
+docker pull ghcr.io/adrianofratelli-glitch/mongodb-ops-manager-demo:latest
+docker run --rm -p 8080:8080 ghcr.io/adrianofratelli-glitch/mongodb-ops-manager-demo:latest   # no .env needed
+```
+
+Same `--env-file` rule as above (`KEY=value`, no quotes); tags: `latest` and `sha-<7-char commit>`.
+
 nginx serves the build and proxies `/api` (prefix kept, as in `vite.config.js`); healthcheck at
 `/health/live`. State is in memory: restarting the container is a reset.
 
