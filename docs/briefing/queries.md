@@ -2,29 +2,59 @@
 
 > Números de linha podem ficar defasados após mudanças: a fonte atualizada é [MAPA_DO_CODIGO.md](../MAPA_DO_CODIGO.md).
 
-## Leia isto primeiro: não há MongoDB real nesta PoV
+## Leia isto primeiro: só o laboratório do Performance Advisor fala com MongoDB
 
-Grep completo no repo (`backend/`, `frontend/src/`) por `.aggregate(`,
-`.find(` (driver real), `create_index`, `createIndex`, `pymongo` e
-`MongoClient`:
+A simulação (dashboard, deployments, backup, alertas, segurança) continua sem
+banco: o dado vem de uma estrutura em memória carregada de
+`frontend/src/api/seed.json` por `backend/data.py` e é filtrado com list
+comprehension em `backend/main.py`.
 
-```
-backend/main.py            create_index(sid)  — remove a sugestão da lista em memória
-frontend/src/api/seed.json "priv": "createIndex, dropIndex, listIndexes"  (texto de exemplo de role)
-frontend/src/modals/ConnectModal.jsx  strings estáticas de exemplo (Node/Python/Java/C#)
-frontend/src/api/client.js createIndex: (id) => api.post(...)
-frontend/src/api/mock.js   createIndex: (sid) => {...}; .find(...) é Array.prototype.find
-```
+A exceção, opcional, é o **laboratório real do Performance Advisor**
+(`backend/lab.py`, rotas `/api/lab/*`). Com `MONGODB_URI` definido, ele usa
+PyMongo para popular coleções fictícias e executar de verdade as consultas
+que a tela aponta como lentas. Sem `MONGODB_URI`, `GET /api/lab` devolve
+`enabled: false` com o motivo e nada mais muda.
 
-Nenhuma dessas ocorrências é uma query real contra um banco MongoDB. Não há
-`pymongo`, não há `MongoClient` instanciado em código de aplicação, não há
-`db.collection.find()`/`.aggregate()` de driver em lugar nenhum. Se o gestor
-perguntar "onde está a query X que popula o dashboard", a resposta é: **não
-existe query — o dado vem de uma estrutura em memória** carregada de
-`frontend/src/api/seed.json` por `backend/data.py`, filtrada/agregada com list comprehension pura em `backend/main.py`.
+## 0. Laboratório real: as queries que existem
 
-Abaixo, o que existe de mais próximo de "query" nesta PoV, para você
-localizar rápido cada coisa quando perguntarem.
+Banco: `OPSMGR_LAB_DB` (padrão `opsmgr_lab`; os testes live usam
+`opsmgr_lab_test`). `lab.config()` recusa qualquer nome fora do prefixo
+`opsmgr_lab`. Os cenários ficam em `frontend/src/api/lab_scenarios.json`
+(lido pelo backend e pelo mock); o filtro é Extended JSON convertido por
+`bson.json_util` em `lab._parsed`.
+
+| Sugestão | MQL executado (`lab.mql`) | Índice criado (`lab.create_index_mql`) | Antes → depois (medido em 2026-11-12, MongoDB 9.0.7) |
+|---|---|---|---|
+| ix-1 | `db.orders.find({"customerId":"C0042"}).sort({"createdAt":-1}).limit(20)` | `{customerId:1, createdAt:-1}` | COLLSCAN → SORT, 12.400 docs examinados → IXSCAN, 20 |
+| ix-2 | `db.sessions.find({"userId":"U0137","expiresAt":{"$gt":ISODate("2026-11-01")}})` | `{userId:1, expiresAt:1}` | COLLSCAN, 8.900 → IXSCAN, 2 |
+| ix-3 | `db.events.find({"eventType":"checkout","timestamp":{"$gt":ISODate("2026-10-25")}}).sort({"timestamp":-1}).limit(50)` | `{eventType:1, timestamp:-1}` | IXSCAN em `timestamp_1`, 561 → IXSCAN no composto, 50 |
+| ix-4 | `db.products.find({"category":"electronics"}).sort({"price":1}).limit(20)` | `{category:1, price:1}` | IXSCAN em `category_1` + SORT em memória, 638 → IXSCAN, 20 |
+
+Como cada operação roda (`backend/lab.py`):
+
+- **Seed** (`lab.seed`, `POST /api/lab/seed`): `drop_collection` + `insert_many`
+  em lotes de 5.000 das quatro coleções (`orders` 12.400, `sessions` 8.900,
+  `events` 45.000, `products` 6.200; `random.Random(42)`, determinístico) e os
+  índices de base `timestamp_1` e `category_1`. Marca `lab_meta {_id: "seed",
+  version}`; sem `?force=true`, um seed válido não é refeito. Leva ~13 s pela
+  rede até o cluster compartilhado.
+- **Explain** (`lab._explain`): comando `{explain: {find, filter, sort, limit},
+  verbosity: "executionStats"}`. `lab._walk_plan` percorre `inputStage`,
+  `inputStages` e `queryPlan` (plano clássico e SBE) e devolve estágios,
+  índice usado, `totalDocsExamined`, `totalKeysExamined`, `nReturned` e
+  `executionTimeMillis`.
+- **Criar índice** (`lab.create_index`, `POST /api/lab/index/{sid}`): explain,
+  `create_index` com nome `opsmgr_lab_ix_<n>`, explain de novo. Índice já
+  existente devolve 409.
+- **Desfazer** (`lab.reset_indexes`, `POST /api/lab/reset`): `drop_index` só dos
+  nomes com prefixo `opsmgr_lab_`; dados e índices de base ficam.
+
+Concorrência: as operações de escrita do laboratório usam `LAB_LOCK`
+(aquisição não bloqueante; a segunda chamada recebe 409 "ocupado") em vez de
+`STATE_LOCK`, para um seed de ~13 s não congelar a simulação. O registro no
+Activity Feed continua sob `STATE_LOCK`. A connection string nunca é
+devolvida; falha de rede em `GET /api/lab` vira `enabled: false` com motivo e,
+nas rotas de escrita, 502 sem detalhe cru.
 
 ## 1. Agregações em memória (equivalentes funcionais de aggregation pipeline)
 
@@ -48,37 +78,25 @@ exigiria seed, conexão, índices e troubleshooting de infraestrutura sem
 ganho nenhum de demonstração — o dado é pequeno (até ~4 clusters, dezenas de
 nós) e cabe inteiro em memória.
 
-## 2. Sugestões de índice do Performance Advisor — dados estáticos, não reais
+## 2. Sugestões de índice e slow queries da simulação
 
-`GET /api/perf-advisor` devolve duas listas fixas do seed, sem nenhuma
-análise real de query shape:
+`GET /api/perf-advisor` devolve duas listas do seed:
 
-- `STATE["perf_index_suggestions"]` — em `seed.json`, cada item com `id` estável (`ix-1`…).
-- `STATE["perf_slow_queries"]` — em `seed.json`.
+- `STATE["perf_index_suggestions"]` — cada item com `id` estável (`ix-1`…), o
+  nome do índice (`name`) e o efeito esperado (`examined_after`, `time_after`).
+- `STATE["perf_slow_queries"]` — cada forma de query ligada à sugestão por
+  `suggestion_id`. A coluna "Docs Examined" usa os números que o laboratório
+  mede no MongoDB real (12.400, 8.900, 561, 638).
 
-Exemplo de uma sugestão (sem dados sensíveis, é tudo fictício):
+"Create Index" da tabela simulada (`POST /api/perf-advisor/index/{sid}`) remove
+a sugestão pelo `id` (segundo clique: 404) e troca a slow query ligada para o
+índice novo (`idx` = `<name> ✓`, docs examinados e tempo pós-índice). Não roda
+`createIndex`: quem roda é o laboratório (seção 0). O mock repete a mesma regra
+(`frontend/src/api/mock.js`, `createIndex`).
 
-```python
-{"id": "ix-1", "impact": "high", "ns": "app_db.orders", "idx": "{ customerId: 1, createdAt: -1 }",
- "queries": 42, "improvement": "~95% faster (12,400 → 8 docs)"}
-```
-
-"Criar o índice" na demo (`POST /api/perf-advisor/index/{sid}`) apenas
-**remove o item da lista em memória** pelo `id` (duas abas não criam o índice
-errado; o segundo clique recebe 404) — não roda `createIndex` contra
-nenhum banco. É pensado para o roteiro de demo (item 8 do fluxo recomendado
-em `ui-flows.md`): o usuário clica em "Create Index", o item some da lista e
-aparece um toast de sucesso — visualmente idêntico ao fluxo real do Ops
-Manager, mas sem execução real.
-
-Os números "dinâmicos" do Performance Advisor (`avg_query_ms`, `slow_count`,
-`collections_scanned`, `avg_query_delta_pct`) são sorteados a cada chamada
-dentro de faixas plausíveis (`backend/main.py`, função
-`get_perf_advisor`) e vêm explicitamente marcados `"simulated": true`. Existe
-até um cálculo de variação percentual guardando a última leitura
-(`_PERF_LAST_AVG_MS`) só para o número "vs. scan anterior" não parecer
-desconectado do que está na tela — mas segue sendo dado sintético, nunca um
-scan real.
+Os números "dinâmicos" (`avg_query_ms`, `slow_count`, `collections_scanned`,
+`avg_query_delta_pct`) continuam sorteados a cada chamada em
+`backend/main.py` (`get_perf_advisor`), marcados `"simulated": true`.
 
 ## 3. "Índices" mencionados na UI — texto/dado estático
 
@@ -92,9 +110,8 @@ scan real.
 
 ## 4. Se o cliente perguntar "e se eu quiser ver isso rodando contra um banco de verdade"
 
-Resposta correta para dar ao gestor: esta PoV é intencionalmente
-"banco-less" — ela demonstra a interface e o fluxo operacional do Ops
-Manager, não o comportamento de queries reais. Para demonstrar otimização de
-índice, aggregation pipeline ou performance real, a PoV certa é outra do
-portfólio que conecta em um cluster Atlas de verdade (ver
-`povs-real-cluster-ok` no vault de memória) — não esta.
+Abra o painel "Prova no MongoDB real" na aba Performance Advisor (backend com
+`MONGODB_URI`): ele executa o MQL acima, mostra o plano vencedor antes e
+depois do `createIndex` e o comando exato. Para aggregation pipeline, Search
+ou Vector Search reais, use outra PoV do portfólio: esta continua focada na
+experiência do operador do Ops Manager.

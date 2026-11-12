@@ -4,8 +4,9 @@ Mapa do código: [docs/MAPA_DO_CODIGO.md](docs/MAPA_DO_CODIGO.md)
 
 # MongoDB Ops Manager — Interactive PoV
 
-**A fully interactive simulation of MongoDB Ops Manager** (no real Ops Manager behind it), built with
-MongoDB's LeafyGreen Design System and a Python backend.
+**A fully interactive simulation of MongoDB Ops Manager 9.0** (no real Ops Manager behind it), built with
+MongoDB's LeafyGreen Design System and a Python backend — plus an optional **Performance Advisor lab**
+that runs the suggested indexes against a real MongoDB and shows `explain("executionStats")` before and after.
 
 Created to support MongoDB Enterprise Advanced positioning in Brazil. This
 public overview is in English; the PoV interface and presentation-specific
@@ -51,7 +52,7 @@ The launcher starts the backend on `127.0.0.1:8077` and the frontend on
 leaves the existing process alone. It never installs dependencies, so run the
 setup above once before a presentation.
 
-**Reset:** there is no database. All state lives in memory and comes from
+**Reset:** the simulation has no database. All state lives in memory and comes from
 `frontend/src/api/seed.json` (shared by the backend and the GitHub Pages mock).
 *Project Settings → Reset Demo* (`POST /api/reset`) or restarting the backend
 returns everything to that seed, including in-flight upgrades and restores.
@@ -65,6 +66,12 @@ returns everything to that seed, including in-flight upgrades and restores.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for architecture, endpoints, and manual
 execution.
 
+> **Optional real MongoDB (Performance Advisor lab):** set `MONGODB_URI` in the
+> environment or in a local `.env` (never committed) and the *Performance Advisor*
+> page shows a "Prova no MongoDB real" panel. See
+> [Performance Advisor lab](#performance-advisor-lab-real-mongodb). Without it the
+> panel says it is off and everything else is unchanged.
+
 > **Two modes:** GitHub Pages uses a zero-cost mock with data embedded in the
 > frontend. When run locally with `./start.sh`, the frontend uses the real
 > FastAPI backend, which is better suited to technical architecture demos.
@@ -74,7 +81,8 @@ execution.
 
 ## Docker
 
-One container (nginx + FastAPI, non-root, port 8080), no external service and no `.env` needed:
+One container (nginx + FastAPI, non-root, port 8080), no external service and no `.env` needed
+(pass `--env-file` with `MONGODB_URI` only if you want the Performance Advisor lab):
 
 ```bash
 docker build -t ops-manager-demo .
@@ -105,7 +113,13 @@ backend/.venv/bin/pytest -q backend/tests      # FastAPI: rules, reset, hostile 
 # UI end-to-end without opening a port (Playwright serves the build itself)
 (cd frontend && npx vite build --outDir /tmp/opsm-dist-real && node tests/e2e_ui.mjs bridge /tmp/opsm-dist-real)
 (cd frontend && VITE_USE_MOCK=1 npx vite build --outDir /tmp/opsm-dist-mock && node tests/e2e_ui.mjs mock /tmp/opsm-dist-mock)
+
+# Performance Advisor lab against a real MongoDB (writes only to the opsmgr_lab_test database)
+OPSMGR_LIVE=1 MONGODB_URI='<your connection string>' backend/.venv/bin/pytest -q backend/tests/test_lab_live.py
 ```
+
+The offline suite always runs with the lab switched off (`backend/tests/conftest.py`),
+so it never needs a network or a database.
 
 `backend/tests/scenarios_adversarial.json` describes out-of-order actions
 (restore without a backup, upgrade during an upgrade, resync of a standalone),
@@ -117,10 +131,45 @@ many actions plus `POST /api/reset` equals the initial state. The `bridge` E2E
 drives the real UI build against the real FastAPI app in process (two full demo
 runs from reset, 360/768/1440 px layouts, `prefers-reduced-motion`).
 
+## Performance Advisor lab (real MongoDB)
+
+The one deliberate exception to "everything is simulated". When `MONGODB_URI` is
+set, `backend/lab.py`:
+
+1. **Populates** four synthetic collections in database `opsmgr_lab` (override
+   with `OPSMGR_LAB_DB`; the backend refuses any name that does not start with
+   `opsmgr_lab`): `orders` 12,400, `sessions` 8,900, `events` 45,000 and
+   `products` 6,200 documents, deterministic (seed 42), plus the two indexes the
+   simulated table says already exist (`timestamp_1`, `category_1`).
+2. **Explains** the exact query shape behind each index suggestion
+   (`frontend/src/api/lab_scenarios.json`, shared with the mock) with
+   `explain("executionStats")`.
+3. **Creates the suggested index** (named `opsmgr_lab_ix_<n>`) and explains again,
+   returning plan, index used, docs and keys examined, documents returned and
+   server time, plus the MQL that was run.
+4. **Undoes** only its own indexes (`opsmgr_lab_` prefix); data stays.
+
+Measured on 2026-11-12 against MongoDB 9.0.7 (`backend/tests/test_lab_live.py`):
+
+| Suggestion | Before | After |
+|---|---|---|
+| `orders {customerId:1, createdAt:-1}` | COLLSCAN → SORT, 12,400 docs examined | IXSCAN → FETCH → LIMIT, 20 |
+| `sessions {userId:1, expiresAt:1}` | COLLSCAN, 8,900 | IXSCAN → FETCH, 2 |
+| `events {eventType:1, timestamp:-1}` | IXSCAN on `timestamp_1`, 561 | IXSCAN on the compound index, 50 |
+| `products {category:1, price:1}` | IXSCAN on `category_1` + in-memory SORT, 638 | IXSCAN → FETCH → LIMIT, 20 |
+
+The "Docs Examined" column of the simulated slow-query table uses these same
+numbers, and the simulated *Create Index* now switches the linked slow query to
+the new index. The connection string never leaves the backend (the API returns
+only database name and server version); infrastructure failures become
+`enabled: false` with a reason, never a crash. The static GitHub Pages build has
+no backend, so the panel is always off there. Rationale:
+[docs/adr/0001-laboratorio-real-performance-advisor.md](docs/adr/0001-laboratorio-real-performance-advisor.md).
+
 ## What is simulated, and which rules are real
 
-**Everything is simulated.** There is no Ops Manager installation, no MongoDB
-process and no agent behind this demo: every number, duration and action lives
+**Everything else is simulated.** There is no Ops Manager installation, no MongoDB
+process and no agent behind the rest of this demo: every number, duration and action lives
 in memory (FastAPI or the browser mock), and the top bar says so on every
 screen. The demo is **not evidence of product performance or results**; it
 shows the operator experience and the order in which Ops Manager allows things
@@ -133,7 +182,7 @@ refusal that follows from it.
 
 | Rule enforced by the demo | Basis | Source |
 |---|---|---|
-| Upgrades go one release series at a time (6.0 → 7.0 → 8.0) | Literal | [Upgrade a Replica Set to 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0-upgrade-replica-set/) |
+| Upgrades go one release series at a time (6.0 → 7.0 → 8.0 → 9.0) | Literal | [Upgrade a Replica Set to 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0-upgrade-replica-set/) |
 | Version changes are rolling, one process at a time, and block resync, step down, add node and a second upgrade while they run | Inferred (Automation applies one goal state per deployment) | [Change the Version of MongoDB](https://www.mongodb.com/docs/ops-manager/current/tutorial/change-mongodb-version/) |
 | Downgrade is refused | Simplification: Ops Manager allows a downgrade within the same FCV; the demo refuses all downgrades and says why | [Change the Version of MongoDB](https://www.mongodb.com/docs/ops-manager/current/tutorial/change-mongodb-version/) |
 | A standalone has no continuous backup or point-in-time restore | Literal (no oplog) | [FAQ: Backup and Restore](https://www.mongodb.com/docs/ops-manager/current/reference/faq/faq-backup/) |
@@ -145,7 +194,12 @@ refusal that follows from it.
 
 Durations (3 s per upgraded process, 9 s restore, 25 s initial sync) are demo
 timings, not product measurements. Rules not listed here (alert thresholds,
-Performance Advisor figures, agent versions) are illustrative only.
+Performance Advisor counters) are illustrative only. The platform label
+(Ops Manager 9.0.1) and agent versions (seed `109.0.0.9285-1`, "Upgrade All" to
+`109.0.1.9309-1`) follow the
+[Ops Manager release notes](https://www.mongodb.com/docs/ops-manager/current/release-notes/application/)
+(read on 2026-11-12); the simulation does not model other 9.0 features
+(OpenTelemetry export of agent metrics, direct-to-S3 backup).
 
 ---
 
@@ -167,7 +221,7 @@ and IOPS rise until the node recovers automatically.
 | **Automation** | Pending changes with apply/discard and history |
 | **Agents** | Inventory, per-host logs, upgrades, and CSV export |
 | **Metrics** | Eight live charts over a moving 60-second window |
-| **Performance Advisor** | Index recommendations and slow-query analysis |
+| **Performance Advisor** | Index recommendations and slow-query analysis; optional lab that proves each suggestion on a real MongoDB with `explain` before/after `createIndex` |
 | **Real-Time** | Per-cluster live operations and a functional `killOp` simulation |
 | **Backup / Restore** | Snapshots and point-in-time recovery |
 | **Alerts** | Open/closed views, settings, and one-hour acknowledgement |
@@ -182,12 +236,13 @@ and IOPS rise until the node recovers automatically.
 |---|---|
 | Frontend | React, Vite, and [LeafyGreen UI](https://www.mongodb.design/) |
 | HTTP | Axios |
-| Backend | Python and FastAPI with in-memory state |
+| Backend | Python and FastAPI with in-memory state; PyMongo for the optional lab |
 
 ## Scope and disclaimer
 
-This is a visual and educational PoV. It uses synthetic in-memory data and does
-not connect to a real Ops Manager installation. MongoDB, Ops Manager, and
+This is a visual and educational PoV. It uses synthetic data and does not
+connect to a real Ops Manager installation; the optional lab writes only synthetic
+documents to its own `opsmgr_lab*` database. MongoDB, Ops Manager, and
 Enterprise Advanced are trademarks of MongoDB, Inc.
 
 ## License

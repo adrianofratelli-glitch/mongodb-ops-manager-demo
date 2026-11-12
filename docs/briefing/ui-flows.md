@@ -54,7 +54,9 @@ Lista completa de clusters com ações: criar (`modals/NewDeploymentModal.jsx`,
 `DELETE /api/clusters/{id}`; a edição de config, `PUT /api/clusters/{id}`, existe em `client.js` mas nenhuma tela a chama), adicionar nó (`POST /api/clusters/{id}/nodes`), step down de PRIMARY
 (`POST /api/clusters/{id}/stepdown`), resync de secundário
 (`POST /api/clusters/{id}/resync`), upgrade de versão
-(`POST /api/clusters/{id}/upgrade`), e o modal "Connect"
+(`POST /api/clusters/{id}/upgrade`: botão "Upgrade → próximo patch" e, quando
+há próxima release series, "Major → 8.0.0/9.0.0", um degrau por vez; o
+modal de criação oferece 9.0.7), e o modal "Connect"
 (`ConnectModal.jsx`) que mostra strings de conexão de exemplo por
 linguagem — sem executar nada de verdade.
 
@@ -71,7 +73,9 @@ status/duração simulados) ou descartar (`DELETE
 Lista `STATE["agents"]` — um por nó provisionado, criado automaticamente
 quando um cluster é criado (`_register_agents` em `backend/main.py`) e
 removido quando o cluster é deletado (`_drop_agents`). Botão "Upgrade All"
-(`POST /api/agents/upgrade`) leva todos para `AGENT_LATEST` (`12.0.28`).
+(`POST /api/agents/upgrade`) leva todos de `AGENT_SEED` (`109.0.0.9285-1`,
+Ops Manager 9.0.0) para `AGENT_LATEST` (`109.0.1.9309-1`, Ops Manager 9.0.1); o
+toast mostra a versão devolvida pelo backend.
 Modal de logs (`AgentLogsModal.jsx`, `GET /api/agents/{host}/logs`) mostra
 linhas de log sintéticas geradas na hora (não há log real persistido).
 Exportação CSV real via `frontend/src/lib/csv.js`.
@@ -100,9 +104,23 @@ Estado vazio dedicado quando não há clusters — não trava em "Carregando…"
 números sintéticos (`avg_query_ms`, `slow_count`, `collections_scanned`,
 `avg_query_delta_pct`), banner deixando claro que são dados ilustrativos
 (`simulated: true`). Botão "Create Index" por sugestão chama `POST
-/api/perf-advisor/index/{idx}`, que remove o item da lista e dispara um
-toast de sucesso — ver `docs/briefing/queries.md` para detalhe de que isso
-não cria índice real nenhum.
+/api/perf-advisor/index/{idx}`, que remove o item da lista, troca a slow
+query ligada para o índice novo (COLLSCAN vira `<índice> ✓`, docs examinados
+caem) e dispara um toast — continua simulado.
+
+Abaixo, o painel **"Prova no MongoDB real"** (`frontend/src/components/LabPanel.jsx`):
+
+- Desligado (sem `MONGODB_URI`, ou build estático do GitHub Pages): banner
+  com o motivo e como ligar; a tabela de cenários aparece com os botões
+  desabilitados.
+- Ligado: selo com versão do servidor e banco (`opsmgr_lab`). "Popular
+  laboratório" cria as coleções fictícias (~13 s pela rede; o botão mostra
+  "Populando…"). Por sugestão: "Explain" mostra o plano atual; "Criar índice
+  real" roda explain → `createIndex` → explain e abre a comparação antes ×
+  depois (plano vencedor, índice usado, docs e chaves examinados, docs
+  devolvidos, tempo no servidor) com a razão de redução e o MQL exato.
+  "Desfazer índices do lab" (com `ConfirmationModal`) remove só os índices
+  `opsmgr_lab_*`, para repetir a medição.
 
 ## Real-Time (`Realtime.jsx`)
 
@@ -181,7 +199,10 @@ ilustrativos (antes havia um "Save Changes" que dizia salvar sem salvar nada).
    lista.
 7. Alerts — reconhecer o alerta crítico, mostrar o banner do Dashboard
    trocando para o próximo alerta.
-8. Performance Advisor — materializar uma recomendação de índice.
+8. Performance Advisor — materializar uma recomendação de índice (a slow
+   query ligada passa a usar o índice) e, com o laboratório ligado, provar a
+   mesma recomendação no MongoDB real: "Criar índice real" em `ix-1` mostra
+   COLLSCAN → SORT com 12.400 docs examinados virando IXSCAN com 20.
 9. Backup/Restore — snapshot manual; restore point-in-time dentro da janela
    mostrada; tentar restaurar o standalone para mostrar a recusa (sem oplog).
 10. Security — autenticação, RBAC e auditabilidade; Audit Log exporta CSV

@@ -10,7 +10,7 @@ com backend Python.
 | **Frontend** | React + Vite + [@leafygreen-ui](https://www.mongodb.design/) (design system oficial da MongoDB) |
 | **Gráficos** | @lg-charts/core (charts oficiais MongoDB) |
 | **HTTP** | axios |
-| **Backend** | Python FastAPI (estado em memória, sem banco real) |
+| **Backend** | Python FastAPI (estado em memória); PyMongo só no laboratório opcional do Performance Advisor |
 
 ## Como rodar (local)
 
@@ -40,6 +40,7 @@ O Vite faz proxy de `/api` → backend (porta 8077) automaticamente em dev.
 ```
 backend/
   main.py            # FastAPI — endpoints REST + mutações
+  lab.py             # laboratório real do Performance Advisor (opcional, MONGODB_URI)
   data.py            # carrega o seed (frontend/src/api/seed.json) e devolve cópias
   tests/             # pytest + cenários compartilhados com o mock
   requirements.txt
@@ -48,6 +49,7 @@ frontend/
     api/client.js    # camada axios (todos os endpoints tipados) + errMsg()
     api/mock.js      # mesma API 100% no cliente, para o build do GitHub Pages
     api/seed.json    # estado inicial único dos dois modos
+    api/lab_scenarios.json  # queries e índices do laboratório (backend e mock)
     components/       # TopBar, Sidebar, MongoLeaf, LineChart, ui helpers
     modals/           # New Deployment, Connect, Agent Logs
     pages/            # uma por seção; só o Dashboard entra no bundle inicial
@@ -78,6 +80,8 @@ Monitoring e ciclo de vida:
 | `GET /api/backup` | snapshots + `pit_windows` por cluster + `storage_gb` (simulado) |
 | `POST /api/restore` | `{cluster, point}` (PIT) ou `{cluster, snapshot_id}`; `target` = `same`, `download` ou cluster de mesma topologia |
 | `DELETE /api/clusters/{id}` | 409 enquanto o cluster é origem ou destino de restore em andamento |
+| `GET /api/lab` | estado do laboratório (desligado sem `MONGODB_URI`; banco, versão do servidor, cenários) |
+| `POST /api/lab/seed` · `GET /api/lab/explain/{id}` · `POST /api/lab/index/{id}` · `POST /api/lab/reset` | popula coleções fictícias em `opsmgr_lab*`, explain executionStats, createIndex real com explain antes/depois, remove só os índices `opsmgr_lab_*` |
 | `DELETE /api/roles/{name}` · `DELETE /api/security/ip?ip=` · `DELETE /api/alerts/configs/{id}` · `POST /api/perf-advisor/index/{id}` | remoção por chave estável |
 
 As regras de recusa (409/422) estão em `docs/briefing/architecture.md`, seção
@@ -92,5 +96,6 @@ As regras de recusa (409/422) estão em `docs/briefing/architecture.md`, seção
 - [x] Ciclo de vida coerente entre clusters, agents e alertas
 - [x] Mock do GitHub Pages em paridade com o backend
 - [x] Páginas em lazy loading; React, LeafyGreen e Emotion em chunks próprios
+- [x] Laboratório real do Performance Advisor (explain antes/depois de createIndex num MongoDB)
 
 > O GitHub Pages usa o mesmo frontend React em modo mock; o runtime local usa FastAPI.

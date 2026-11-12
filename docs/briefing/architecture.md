@@ -70,9 +70,16 @@ FastAPI (:8077)  — backend/main.py
        ├─ users / roles / ip_access_list / audit_events
        ├─ perf_index_suggestions / perf_slow_queries
        └─ activity (feed de auditoria da própria demo)
+  └─ backend/lab.py  (opcional, só com MONGODB_URI)
+       └─ PyMongo → banco opsmgr_lab* (orders, sessions, events, products, lab_meta)
+            explain("executionStats") antes/depois de createIndex
 ```
 
-Não existe camada de persistência (sem SQLite, sem arquivo, sem MongoDB).
+A simulação não tem camada de persistência (sem SQLite, sem arquivo, sem
+MongoDB). O laboratório do Performance Advisor é a única parte que fala com um
+MongoDB, só quando `MONGODB_URI` está no ambiente ou no `.env` da PoV (lido por
+`lab._load_dotenv`, sem sobrescrever o ambiente); o reset da demo não toca no
+laboratório, que tem o próprio "Desfazer índices".
 Reiniciar o processo do backend, ou chamar `POST /api/reset`, volta tudo para
 o seed de `frontend/src/api/seed.json`. O reset também zera as séries de
 métricas (`_WALKS`), as operações vivas (`_RT_OPS`) e o último scan do
@@ -97,19 +104,25 @@ separados, reaproveitados pelo navegador entre deploys.
 
 ## Decisões de arquitetura e o porquê
 
-- **Estado em memória, sem banco real** — a PoV existe para demonstrar o
-  *produto* Ops Manager, não para provar performance de banco. Colocar um
-  MongoDB real atrás dela adicionaria infraestrutura sem adicionar valor de
-  demonstração, e complicaria o `start.sh` (dependência externa, seed,
-  cleanup). Trade-off aceito: nada sobrevive a um restart, e isso é
-  documentado como limite conhecido.
+- **Estado em memória, sem banco real na simulação** — a PoV existe para
+  demonstrar o *produto* Ops Manager. Colocar um MongoDB atrás de todas as
+  telas adicionaria infraestrutura sem valor de demonstração. Trade-off
+  aceito: nada sobrevive a um restart.
+- **Laboratório real só no Performance Advisor, opcional** — é a tela em que
+  "o índice ajuda" é uma afirmação sobre o banco, não sobre a interface, e a
+  única que dá para provar em segundos com `explain`. Sem `MONGODB_URI` fica
+  desligado; com ele, escreve só em `opsmgr_lab*` e só remove os próprios
+  índices. Usa `LAB_LOCK` (não bloqueante, 409 se ocupado) em vez de
+  `STATE_LOCK` para um seed de ~13 s não travar as rotas da simulação; o
+  registro no Activity Feed continua sob `STATE_LOCK`. ADR:
+  [0001](../adr/0001-laboratorio-real-performance-advisor.md).
 - **FastAPI + mock.js duplicados, não um só backend** — o requisito de rodar
   em GitHub Pages (hosting estático, sem servidor) força uma segunda
   implementação client-side da mesma lógica. Para conter a duplicação, o
   seed é um arquivo só (`seed.json`) e as regras são presas pelos mesmos
   cenários (`backend/tests/scenarios_adversarial.json`), executados contra o
   FastAPI (`pytest`) e contra o mock (`npm run test:parity`).
-- **`RLock` global (`STATE_LOCK`) em toda rota de escrita** — sem ele,
+- **`RLock` global (`STATE_LOCK`) em toda rota de escrita da simulação** — sem ele,
   requisições concorrentes (ex.: dois cliques rápidos em "New Deployment"
   com o mesmo nome) corrompiam o estado em memória compartilhado entre
   requisições do Uvicorn. Com o lock, a segunda requisição recebe `409`
@@ -137,7 +150,7 @@ produto real não faria. Cada linha tem cenário em
 
 | Ação | Regra na demo | Base no produto real |
 |---|---|---|
-| Upgrade (`POST /api/clusters/{id}/upgrade`, Automation "Apply") | Rolling: um processo por vez, config servers → secundários → primário → mongos; 3 s simulados por processo; recusa mesma versão, downgrade, salto de release series (6.0 → 8.0) e versão fora de 4.4–8.0; recusa novo upgrade durante upgrade | Upgrade de MongoDB é sequencial por release series e rolling no Ops Manager |
+| Upgrade (`POST /api/clusters/{id}/upgrade`, Automation "Apply") | Rolling: um processo por vez, config servers → secundários → primário → mongos; 3 s simulados por processo; recusa mesma versão, downgrade, salto de release series (6.0 → 8.0, 7.0 → 9.0) e versão fora de 4.4–9.0; recusa novo upgrade durante upgrade | Upgrade de MongoDB é sequencial por release series e rolling no Ops Manager |
 | Resync | Só membro `SECONDARY`; recusa standalone, mongos, config server e resync duplicado; bloqueado durante upgrade | Initial sync é de membro de replica set |
 | Step down | Nó em `STARTUP2` (resync) não é eleito; bloqueado durante upgrade | Membro em initial sync não é elegível |
 | Add Node | Só replica set; bloqueado durante upgrade | Sharded cresce por shard; standalone precisa virar replica set |
@@ -145,6 +158,7 @@ produto real não faria. Cada linha tem cenário em
 | Restore | Recusa cluster sem snapshot, standalone, ponto fora da janela PIT (do snapshot mais antigo ao mais recente), destino de topologia diferente, restore simultâneo na mesma origem/destino e destino em rolling upgrade; restore a partir de snapshot vira job `Snapshot`, não `PIT` | Restore só existe dentro da janela coberta pelo backup |
 | Restore em andamento | Destino (inclusive `same`) recusa terminate, upgrade, add node, step down e resync; origem recusa terminate; o snapshot em uso não pode ser apagado (todos 409). Job que perde origem/destino por outro caminho termina `failed` com `error`, nunca `completed` | Automated restore reescreve o destino via Automation; remover o deployment apaga os snapshots ([fontes no README](../../README.md#what-is-simulated-and-which-rules-are-real)) |
 | Automation | Mudança pendente de cluster terminado é recusada (descartar); upgrade pendente vira rolling upgrade real da simulação; config change grava `config` no cluster | — |
+| Create Index (tabela simulada) | Remove a sugestão e troca a slow query ligada (`suggestion_id`) para o índice novo, com docs examinados e tempo pós-índice | Os números pós-índice são os medidos pelo laboratório real |
 | Deletes (roles, IP, alert config, sugestão de índice) | Por chave estável (nome, rede, `id`), não por posição — duas abas não apagam o item errado; duplicatas recusadas com 409 | — |
 
 Durações (`3 s` por processo, `9 s` de restore, `25 s` de resync) são da
@@ -153,10 +167,12 @@ simulação, não medidas do produto.
 ## Limites conhecidos
 
 - Sem Ops Manager real, Automation Agent ou Backup Daemon.
-- Sem persistência entre reinícios do processo.
+- Sem persistência entre reinícios do processo (o laboratório guarda seus dados no banco `opsmgr_lab*`).
+- Versões exibidas: Ops Manager 9.0.1 e MongoDB Agent `109.0.0.9285-1` → `109.0.1.9309-1` (release notes oficiais lidas em 2026-11-12); recursos novos do 9.0 (export OTel de métricas do agente, backup direto para S3) não são simulados.
 - Sem credenciais, hosts ou identidade de cliente reais em lugar nenhum.
 - `/health/live` comprova apenas liveness do processo backend, não validação
   funcional de cada módulo.
 - Performance Advisor (`GET /api/perf-advisor`) devolve números sintéticos
   recalculados a cada chamada, marcados explicitamente com `"simulated": true"`
-  — a UI mostra um banner avisando que são dados ilustrativos.
+  — a UI mostra um banner avisando que são dados ilustrativos e aponta para o
+  laboratório, cujos números são medidos.
