@@ -1,0 +1,46 @@
+{
+  "_doc": "Cenários do laboratório real do Performance Advisor. Lidos pelo backend (backend/lab.py) e pelo mock (src/api/mock.js). Filtros em Extended JSON (relaxed): o backend converte com bson.json_util e executa exatamente este MQL no banco do laboratório. Os dados são fictícios e gerados de forma determinística.",
+  "reference_date": "2026-11-01T00:00:00Z",
+  "scenarios": [
+    {
+      "id": "ix-1",
+      "collection": "orders",
+      "slow_ns": "app_db.orders",
+      "filter": {"customerId": "C0042"},
+      "sort": {"createdAt": -1},
+      "limit": 20,
+      "index": {"customerId": 1, "createdAt": -1},
+      "why": "Igualdade em customerId e ordenação por createdAt (regra ESR: Equality, Sort, Range)."
+    },
+    {
+      "id": "ix-2",
+      "collection": "sessions",
+      "slow_ns": "app_db.sessions",
+      "filter": {"userId": "U0137", "expiresAt": {"$gt": {"$date": "2026-11-01T00:00:00Z"}}},
+      "sort": null,
+      "limit": 0,
+      "index": {"userId": 1, "expiresAt": 1},
+      "why": "Igualdade em userId seguida de faixa em expiresAt."
+    },
+    {
+      "id": "ix-3",
+      "collection": "events",
+      "slow_ns": "analytics.events",
+      "filter": {"eventType": "checkout", "timestamp": {"$gt": {"$date": "2026-10-25T00:00:00Z"}}},
+      "sort": {"timestamp": -1},
+      "limit": 50,
+      "index": {"eventType": 1, "timestamp": -1},
+      "why": "O índice existente timestamp_1 filtra só a faixa; o composto começa pela igualdade em eventType."
+    },
+    {
+      "id": "ix-4",
+      "collection": "products",
+      "slow_ns": "app_db.products",
+      "filter": {"category": "electronics"},
+      "sort": {"price": 1},
+      "limit": 20,
+      "index": {"category": 1, "price": 1},
+      "why": "category_1 encontra os documentos, mas a ordenação por price acontece em memória (estágio SORT)."
+    }
+  ]
+}

@@ -38,6 +38,7 @@ export default function NewDeploymentModal({ open, onClose, toast, onCreated }) 
         </Select>
         <TextInput label="Cluster Name" placeholder="ex: rs-prod-02" value={name} onChange={(e) => setName(e.target.value)} />
         <Select label="MongoDB Version" value={version} onChange={setVersion} allowDeselect={false}>
+          <Option value="9.0.7">9.0.7</Option>
           <Option value="7.0.5">7.0.5</Option>
           <Option value="6.0.12">6.0.12</Option>
           <Option value="5.0.24">5.0.24</Option>

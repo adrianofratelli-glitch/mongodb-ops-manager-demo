@@ -9,6 +9,7 @@ import { spacing } from '@leafygreen-ui/tokens'
 import { palette } from '@leafygreen-ui/palette'
 import { PageHeader, StatCard, Grid, DataTable, Loading } from '../components/ui'
 import { API, errMsg } from '../api/client'
+import LabPanel from '../components/LabPanel'
 
 const IMPACT = { high: ['red', 'High'], med: ['yellow', 'Medium'], low: ['blue', 'Low'] }
 
@@ -47,7 +48,7 @@ export default function PerfAdvisor({ toast, refreshCounts }) {
       <PageHeader title="Performance Advisor" subtitle="Automatic index suggestions & slow query analysis"
         actions={[<Button key="r" leftGlyph={<Icon glyph="Refresh" />} onClick={reload}>Re-scan</Button>]} />
       <Banner variant="info" style={{ marginBottom: spacing[400] }}>
-        📊 Slow Queries, Avg Query Time e Collections Scanned são números ilustrativos, recalculados a cada scan para fins de demonstração — não refletem uma varredura real do cluster.
+        📊 Slow Queries, Avg Query Time, Collections Scanned e o Create Index desta tabela são simulados (estado em memória). Os docs examinados das sugestões batem com o que o laboratório abaixo mede num MongoDB real.
       </Banner>
       <Grid cols={4} style={{ marginBottom: spacing[600] }}>
         <StatCard label="Index Suggestions" value={data.index_suggestions.length} color={palette.yellow.dark2} sub={<Description>High impact opportunities</Description>} />
@@ -67,6 +68,7 @@ export default function PerfAdvisor({ toast, refreshCounts }) {
         <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>🐌 Slowest Queries</Subtitle></div>
         <DataTable columns={slowCols} rows={data.slow_queries} />
       </Card>
+      <div style={{ marginTop: spacing[600] }}><LabPanel toast={toast} /></div>
     </div>
   )
 }

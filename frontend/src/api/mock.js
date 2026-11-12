@@ -8,6 +8,7 @@
 // Tudo é SIMULADO: nada fala com um Ops Manager real.
 // ──────────────────────────────────────────────────────────────
 import SEED from './seed.json' with { type: 'json' }
+import LAB from './lab_scenarios.json' with { type: 'json' }
 
 const seed = () => JSON.parse(JSON.stringify(SEED))
 
@@ -32,7 +33,7 @@ function parseTs(v) {
   return d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] ? d : null
 }
 
-const RELEASE_SERIES = ['4.4', '5.0', '6.0', '7.0', '8.0']
+const RELEASE_SERIES = ['4.4', '5.0', '6.0', '7.0', '8.0', '9.0']
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/
 const UPGRADE_SECONDS_PER_NODE = 3
 const vtuple = (v) => v.split('-')[0].split('.').map(Number)
@@ -58,7 +59,19 @@ function walk(store, key, base, noise, mn = 0, mx = null, nd = 1) {
 const shortHost = (node) => node.host.split(':')[0].split('.')[0]
 
 
-const AGENT_LATEST = '12.0.28'
+const OPS_MANAGER_VERSION = '9.0.1'
+const AGENT_LATEST = '109.0.1.9309-1'
+const AGENT_SEED = '109.0.0.9285-1'
+// Laboratório real (backend/lab.py): no build estático não há backend nem MongoDB,
+// então o contrato é o mesmo do backend sem MONGODB_URI — desligado, com motivo.
+const LAB_REASON = 'Build estático (GitHub Pages): sem backend nem MongoDB. O laboratório real roda só com o FastAPI local e MONGODB_URI.'
+const LAB_DISABLED = `Laboratório desligado: ${LAB_REASON}`
+const labIndexName = (s) => `opsmgr_lab_${s.id.replace('-', '_')}`
+const labMql = (s) => `db.${s.collection}.find(${JSON.stringify(s.filter)})${s.sort ? `.sort(${JSON.stringify(s.sort)})` : ''}${s.limit ? `.limit(${s.limit})` : ''}.explain("executionStats")`
+const labScenarios = () => LAB.scenarios.map((s) => ({
+  id: s.id, collection: s.collection, slow_ns: s.slow_ns, index: s.index, index_name: labIndexName(s), why: s.why,
+  mql: labMql(s), create_index_mql: `db.${s.collection}.createIndex(${JSON.stringify(s.index)}, { name: "${labIndexName(s)}" })`,
+}))
 const RESYNC_SECONDS = 25
 const ACK_MINUTES = 60
 const RESTORE_RUNNING_SECONDS = 3
@@ -90,7 +103,7 @@ function registerAgents(cluster) {
   cluster.nodes.forEach((n) => {
     const host = n.host.split(':')[0]
     if (STATE.agents.some((a) => a.host === host)) return
-    STATE.agents.push({ host, status: 'Running', version: STATE.agent_version || '12.0.27', type: agentType(n.role), ping: 'just now', cluster: cluster.name })
+    STATE.agents.push({ host, status: 'Running', version: STATE.agent_version || AGENT_SEED, type: agentType(n.role), ping: 'just now', cluster: cluster.name })
   })
 }
 function dropAgents(cluster) {
@@ -272,7 +285,7 @@ const choice = (arr) => arr[rand(0, arr.length)]
 
 
 export const MockAPI = {
-  meta: () => ok({ org: STATE.org, project: STATE.project, simulated: true }),
+  meta: () => ok({ org: STATE.org, project: STATE.project, ops_manager_version: OPS_MANAGER_VERSION, simulated: true }),
 
   dashboard: () => {
     advanceAll()
@@ -416,7 +429,7 @@ export const MockAPI = {
   }),
   agents: () => {
     const versoes = [...new Set(STATE.agents.map((a) => a.version))].sort()
-    return ok({ agents: STATE.agents, version: versoes[0] || STATE.agent_version || '12.0.27', latest: AGENT_LATEST, running: STATE.agents.filter((a) => a.status === 'Running').length })
+    return ok({ agents: STATE.agents, version: versoes[0] || STATE.agent_version || AGENT_SEED, latest: AGENT_LATEST, running: STATE.agents.filter((a) => a.status === 'Running').length })
   },
   agentLogs: (host) => {
     const a = STATE.agents.find((x) => x.host === host)
@@ -509,9 +522,20 @@ export const MockAPI = {
     const s = STATE.perf_index_suggestions.find((x) => x.id === sid)
     if (!s) throw new ApiError('Sugestão não encontrada (o índice pode já ter sido criado).', 404)
     STATE.perf_index_suggestions.splice(STATE.perf_index_suggestions.indexOf(s), 1)
+    // A slow query ligada à sugestão passa a usar o índice novo (espelha o backend).
+    STATE.perf_slow_queries.forEach((q) => {
+      if (q.suggestion_id === sid) { q.idx = `${s.name} ✓`; q.examined = s.examined_after; q.time = s.time_after }
+    })
     logActivity(ADMIN, 'CREATE INDEX', s.ns, `Rolling index build ${s.idx}`)
     return { ok: true, created: s, remaining: STATE.perf_index_suggestions }
   }),
+
+  lab: () => ok({ enabled: false, db: 'opsmgr_lab', reason: LAB_REASON, scenarios: labScenarios() }),
+  labSeed: () => fail(LAB_DISABLED, 503),
+  // Mesma ordem do backend: cenário inexistente é 404 antes de checar se o lab está ligado.
+  labExplain: (sid) => (LAB.scenarios.some((s) => s.id === sid) ? fail(LAB_DISABLED, 503) : fail(`Cenário ${String(sid).slice(0, 32)} não existe no laboratório.`, 404)),
+  labCreateIndex: (sid) => (LAB.scenarios.some((s) => s.id === sid) ? fail(LAB_DISABLED, 503) : fail(`Cenário ${String(sid).slice(0, 32)} não existe no laboratório.`, 404)),
+  labReset: () => fail(LAB_DISABLED, 503),
 
   backup: () => ok({
     protected: STATE.clusters.filter((c) => c.type !== 'standalone').length,

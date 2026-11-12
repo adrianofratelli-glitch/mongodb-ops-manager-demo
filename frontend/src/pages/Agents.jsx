@@ -20,7 +20,7 @@ export default function Agents({ toast }) {
   if (!data) return <Loading />
 
   const upgradeAll = async () => {
-    try { await API.upgradeAgents(); toast('Agents atualizados', 'Todos os agents agora rodam v12.0.28.', 'success'); reload() }
+    try { const r = await API.upgradeAgents(); toast('Agents atualizados', `Todos os agents agora rodam v${r.version}.`, 'success'); reload() }
     catch (e) { toast('Erro', errMsg(e), 'warning') }
   }
 

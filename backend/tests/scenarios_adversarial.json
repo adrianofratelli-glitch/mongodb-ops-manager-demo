@@ -195,6 +195,45 @@
         {"call":  "upgradeCluster", "args":  ["rs-prod-01", {"target_version":  "7.0.6"}], "expect":  "ok"},
         {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "same"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}}
       ]
+    },
+    {
+      "name": "Create Index simulado: a slow query ligada passa a usar o índice",
+      "steps": [
+        {"get": "perfAdvisor", "path": "slow_queries.0.idx", "equals": "COLLSCAN"},
+        {"call": "createIndex", "args": ["ix-1"], "expect": "ok"},
+        {"get": "perfAdvisor", "path": "slow_queries.0.idx", "equals": "customerId_1_createdAt_-1 ✓"},
+        {"get": "perfAdvisor", "path": "slow_queries.0.examined", "equals": "20"},
+        {"get": "perfAdvisor", "path": "slow_queries.1.idx", "equals": "COLLSCAN"},
+        {"get": "perfAdvisor", "path": "slow_queries.4.idx", "equals": "email_1 ✓"}
+      ]
+    },
+    {
+      "name": "Upgrade de release series 7.0 → 8.0 → 9.0, um degrau por vez",
+      "steps": [
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "9.0.0"}], "expect": {"status": 409, "contains": "passe por 8.0"}},
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "8.0.0"}], "expect": "ok"},
+        {"advance": 10},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "version", "equals": "8.0.0"},
+        {"call": "upgradeCluster", "args": ["rs-prod-01", {"target_version": "9.0.0"}], "expect": "ok"},
+        {"advance": 10},
+        {"get": "clusters", "find": {"id": "rs-prod-01"}, "path": "version", "equals": "9.0.0"},
+        {"call": "createCluster", "args": [{"name": "rs-90", "type": "Replica Set", "version": "9.0.7", "members": 3}], "expect": "ok"}
+      ]
+    },
+    {
+      "name": "Laboratório desligado: mesmo contrato no backend sem MONGODB_URI e no mock",
+      "steps": [
+        {"get": "lab", "path": "enabled", "equals": false},
+        {"get": "lab", "path": "scenarios.0.index_name", "equals": "opsmgr_lab_ix_1"},
+        {"get": "lab", "path": "scenarios.1.mql", "equals": "db.sessions.find({\"userId\":\"U0137\",\"expiresAt\":{\"$gt\":{\"$date\":\"2026-11-01T00:00:00Z\"}}}).explain(\"executionStats\")"},
+        {"get": "lab", "path": "scenarios.3.create_index_mql", "equals": "db.products.createIndex({\"category\":1,\"price\":1}, { name: \"opsmgr_lab_ix_4\" })"},
+        {"call": "labExplain", "args": ["ix-9"], "expect": {"status": 404, "contains": "não existe no laboratório"}},
+        {"call": "labCreateIndex", "args": ["ix-9"], "expect": {"status": 404, "contains": "não existe no laboratório"}},
+        {"call": "labExplain", "args": ["ix-1"], "expect": {"status": 503, "contains": "Laboratório desligado"}},
+        {"call": "labCreateIndex", "args": ["ix-1"], "expect": {"status": 503, "contains": "Laboratório desligado"}},
+        {"call": "labSeed", "args": [], "expect": {"status": 503, "contains": "Laboratório desligado"}},
+        {"call": "labReset", "args": [], "expect": {"status": 503, "contains": "Laboratório desligado"}}
+      ]
     }
   ]
 }

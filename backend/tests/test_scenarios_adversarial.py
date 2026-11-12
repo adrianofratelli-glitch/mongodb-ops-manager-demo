@@ -46,11 +46,15 @@ CALLS = {
     "deleteRole": lambda name: ("delete", f"/api/roles/{quote(name)}", None),
     "addIp": lambda b: ("post", "/api/security/ip", b),
     "deleteIp": lambda ip: ("delete", f"/api/security/ip?ip={quote(ip, safe='')}", None),
+    "labSeed": lambda: ("post", "/api/lab/seed", None),
+    "labExplain": lambda sid: ("get", f"/api/lab/explain/{sid}", None),
+    "labCreateIndex": lambda sid: ("post", f"/api/lab/index/{sid}", None),
+    "labReset": lambda: ("post", "/api/lab/reset", None),
 }
 GETS = {
     "clusters": "/api/clusters", "automation": "/api/automation", "backup": "/api/backup",
     "restoreJobs": "/api/restore", "perfAdvisor": "/api/perf-advisor", "roles": "/api/roles",
-    "alerts": "/api/alerts", "ips": "/api/security/ip",
+    "alerts": "/api/alerts", "ips": "/api/security/ip", "lab": "/api/lab",
 }
 
 

@@ -17,6 +17,9 @@ const TYPE_BADGE = { rs: ['blue', 'Replica Set'], sharded: ['green', 'Sharded Cl
 // Próximo patch da mesma release series (ex.: 7.0.5 → 7.0.6): o caminho seguro
 // que o Ops Manager oferece por padrão. Saltos de release series ficam para o backend validar.
 const nextPatch = (v) => { const [a, b, c] = String(v).split('-')[0].split('.').map(Number); return `${a}.${b}.${(c || 0) + 1}` }
+// Próxima release series (ex.: 8.0 → 9.0), um degrau por vez como no Ops Manager.
+const SERIES = ['4.4', '5.0', '6.0', '7.0', '8.0', '9.0']
+const nextMajor = (v) => { const [a, b] = String(v).split('.'); const i = SERIES.indexOf(`${a}.${b}`); return i >= 0 && i < SERIES.length - 1 ? `${SERIES[i + 1]}.0` : null }
 
 const STATUS_BADGE = { healthy: ['green', '● Healthy'], warning: ['yellow', '● Warning'], critical: ['red', '● Critical'] }
 
@@ -99,6 +102,13 @@ function ClusterBlock({ c, toast, reload }) {
             disabled={busy || upgrading}>
             {upgrading ? 'Upgrade em andamento…' : `Upgrade → ${target}`}
           </Button>
+          {nextMajor(c.version) && !upgrading && (
+            <Button size="xsmall" leftGlyph={<Icon glyph="ArrowUp" />}
+              onClick={() => doAction(() => API.upgradeCluster(c.id, { target_version: nextMajor(c.version) }), `Rolling upgrade de ${c.name} para ${nextMajor(c.version)} iniciado`)}
+              disabled={busy}>
+              {`Major → ${nextMajor(c.version)}`}
+            </Button>
+          )}
           <Button size="xsmall" variant="dangerOutline" leftGlyph={<Icon glyph="Stop" />} onClick={() => setConfirmTerminate(true)}>Terminate</Button>
         </div>
       </div>

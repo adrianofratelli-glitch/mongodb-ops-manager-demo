@@ -7,6 +7,10 @@ Tudo aqui é SIMULADO: nenhuma rota fala com um Ops Manager real. As regras de
 negócio (rolling upgrade, backup só de replica set/sharded, janela de PIT,
 eleição só com secundário elegível) seguem o comportamento documentado do
 Ops Manager para que a demo não mostre algo que o produto real recusaria.
+
+Exceção deliberada e opcional: o laboratório do Performance Advisor (`lab.py`,
+rotas `/api/lab/*`) executa explain/createIndex de verdade num MongoDB quando
+`MONGODB_URI` está definido. Sem ele, fica desligado e o resto não muda.
 """
 import random
 import re
@@ -21,8 +25,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 import data
+import lab
 
-app = FastAPI(title="MongoDB Ops Manager — Demo API", version="1.2.1")
+app = FastAPI(title="MongoDB Ops Manager — Demo API", version="1.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,12 +40,17 @@ app.add_middleware(
 # ── Estado global em memória ─────────────────────────────────
 STATE = data.seed()
 STATE_LOCK = RLock()
-AGENT_LATEST = "12.0.28"
+# Versão exibida da plataforma simulada e do MongoDB Agent empacotado com ela
+# (release notes do Ops Manager: 9.0.0 em 2026-09-29 com Agent 109.0.0.9285-1;
+# 9.0.1 em 2026-10-05 com Agent 109.0.1.9309-1).
+OPS_MANAGER_VERSION = "9.0.1"
+AGENT_LATEST = "109.0.1.9309-1"
+AGENT_SEED = "109.0.0.9285-1"  # versão dos agents no seed (antes do "Upgrade All")
 ADMIN = "admin@mongodb-brazil.com"
 
 # Release series que a demo conhece. O Ops Manager só faz upgrade de uma
-# release series por vez (6.0 → 7.0 → 8.0), nunca pulando uma.
-RELEASE_SERIES = ["4.4", "5.0", "6.0", "7.0", "8.0"]
+# release series por vez (6.0 → 7.0 → 8.0 → 9.0), nunca pulando uma.
+RELEASE_SERIES = ["4.4", "5.0", "6.0", "7.0", "8.0", "9.0"]
 VERSION_PATTERN = r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$"
 UPGRADE_SECONDS_PER_NODE = 3
 RESYNC_SECONDS = 25
@@ -172,7 +182,7 @@ class NewIP(BaseModel):
 # ════════════════════════════════════════════════════════════
 @app.get("/api/meta")
 def get_meta():
-    return {"org": STATE["org"], "project": STATE["project"], "simulated": True}
+    return {"org": STATE["org"], "project": STATE["project"], "ops_manager_version": OPS_MANAGER_VERSION, "simulated": True}
 
 
 @app.get("/api/dashboard")
@@ -204,7 +214,7 @@ def _register_agents(cluster):
         if any(a["host"] == host for a in STATE["agents"]):
             continue
         STATE["agents"].append({
-            "host": host, "status": "Running", "version": STATE.get("agent_version", "12.0.27"),
+            "host": host, "status": "Running", "version": STATE.get("agent_version", AGENT_SEED),
             "type": _agent_type(n["role"]), "ping": "just now", "cluster": cluster["name"],
         })
 
@@ -573,7 +583,7 @@ def discard_pending(pid: str):
 @app.get("/api/agents")
 def get_agents():
     versions = {a["version"] for a in STATE["agents"]}
-    current = sorted(versions)[0] if versions else STATE.get("agent_version", "12.0.27")
+    current = sorted(versions)[0] if versions else STATE.get("agent_version", AGENT_SEED)
     running = sum(1 for a in STATE["agents"] if a["status"] == "Running")
     return {"agents": STATE["agents"], "version": current, "latest": AGENT_LATEST, "running": running}
 
@@ -832,8 +842,64 @@ def create_index(sid: str):
         if not s:
             raise HTTPException(404, "Sugestão não encontrada (o índice pode já ter sido criado).")
         STATE["perf_index_suggestions"].remove(s)
+        # A slow query que motivou a sugestão passa a usar o índice novo: a
+        # tabela não pode continuar mostrando COLLSCAN depois do Create Index.
+        for q in STATE["perf_slow_queries"]:
+            if q.get("suggestion_id") == sid:
+                q["idx"] = f"{s['name']} ✓"
+                q["examined"] = s["examined_after"]
+                q["time"] = s["time_after"]
         _log_activity(ADMIN, "CREATE INDEX", s["ns"], f"Rolling index build {s['idx']}")
     return {"ok": True, "created": s, "remaining": STATE["perf_index_suggestions"]}
+
+
+# ════════════════════════════════════════════════════════════
+# LABORATÓRIO REAL DO PERFORMANCE ADVISOR (opcional, MongoDB de verdade)
+# ════════════════════════════════════════════════════════════
+def _lab_call(fn, *args):
+    try:
+        return fn(*args)
+    except lab.LabError as error:
+        raise HTTPException(error.status, error.detail) from None
+    except HTTPException:
+        raise
+    except Exception as error:  # noqa: BLE001 — infra (rede, auth) não vira 500 cru
+        raise HTTPException(502, f"MongoDB do laboratório falhou ({type(error).__name__}); a demo simulada continua.") from None
+
+
+@app.get("/api/lab")
+def lab_status():
+    return _lab_call(lab.status)
+
+
+@app.post("/api/lab/seed")
+def lab_seed(force: bool = False):
+    out = _lab_call(lab.seed, force)
+    if not out.get("skipped"):
+        with STATE_LOCK:
+            _log_activity(ADMIN, "LAB SEED", "opsmgr_lab", f"Coleções fictícias recriadas em {out['seconds']}s")
+    return out
+
+
+@app.get("/api/lab/explain/{sid}")
+def lab_explain(sid: str):
+    return _lab_call(lab.explain, sid)
+
+
+@app.post("/api/lab/index/{sid}")
+def lab_create_index(sid: str):
+    out = _lab_call(lab.create_index, sid)
+    with STATE_LOCK:
+        _log_activity(ADMIN, "LAB INDEX", sid, f"createIndex real: docs examinados {out['before']['docs_examined']} → {out['after']['docs_examined']}")
+    return out
+
+
+@app.post("/api/lab/reset")
+def lab_reset():
+    out = _lab_call(lab.reset_indexes)
+    with STATE_LOCK:
+        _log_activity(ADMIN, "LAB RESET", "opsmgr_lab", f"{len(out['dropped'])} índice(s) do laboratório removido(s)")
+    return out
 
 
 # ════════════════════════════════════════════════════════════

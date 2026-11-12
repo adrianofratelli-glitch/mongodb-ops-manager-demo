@@ -461,7 +461,7 @@
   {
    "host": "mongo-node-01.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "5s ago",
    "cluster": "rs-prod-01"
@@ -469,7 +469,7 @@
   {
    "host": "mongo-node-02.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "5s ago",
    "cluster": "rs-prod-01"
@@ -477,7 +477,7 @@
   {
    "host": "mongo-node-03.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "7s ago",
    "cluster": "rs-prod-01"
@@ -485,7 +485,7 @@
   {
    "host": "mongos-01.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring",
    "ping": "4s ago",
    "cluster": "sharded-analytics"
@@ -493,7 +493,7 @@
   {
    "host": "shard-01-n1.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "6s ago",
    "cluster": "sharded-analytics"
@@ -501,7 +501,7 @@
   {
    "host": "shard-02-n1.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "5s ago",
    "cluster": "sharded-analytics"
@@ -509,7 +509,7 @@
   {
    "host": "configsvr-01.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring",
    "ping": "5s ago",
    "cluster": "sharded-analytics"
@@ -517,7 +517,7 @@
   {
    "host": "stg-mongo-01.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "9s ago",
    "cluster": "rs-staging"
@@ -525,7 +525,7 @@
   {
    "host": "stg-mongo-02.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring + Backup",
    "ping": "9s ago",
    "cluster": "rs-staging"
@@ -533,7 +533,7 @@
   {
    "host": "dev-mongo.mongodb-brazil.internal",
    "status": "Running",
-   "version": "12.0.27",
+   "version": "109.0.0.9285-1",
    "type": "Automation + Monitoring",
    "ping": "12s ago",
    "cluster": "mongo-dev-01"
@@ -546,7 +546,10 @@
    "ns": "app_db.orders",
    "idx": "{ customerId: 1, createdAt: -1 }",
    "queries": 42,
-   "improvement": "~95% faster (12,400 → 8 docs)"
+   "improvement": "12,400 → 20 docs examinados (COLLSCAN + SORT → IXSCAN)",
+   "name": "customerId_1_createdAt_-1",
+   "examined_after": "20",
+   "time_after": "4ms"
   },
   {
    "id": "ix-2",
@@ -554,7 +557,10 @@
    "ns": "app_db.sessions",
    "idx": "{ userId: 1, expiresAt: 1 }",
    "queries": 38,
-   "improvement": "~88% faster (COLLSCAN → IXSCAN)"
+   "improvement": "8,900 → 2 docs examinados (COLLSCAN → IXSCAN)",
+   "name": "userId_1_expiresAt_1",
+   "examined_after": "2",
+   "time_after": "3ms"
   },
   {
    "id": "ix-3",
@@ -562,7 +568,10 @@
    "ns": "analytics.events",
    "idx": "{ eventType: 1, timestamp: -1 }",
    "queries": 21,
-   "improvement": "~70% faster"
+   "improvement": "561 → 50 docs examinados (igualdade antes da faixa)",
+   "name": "eventType_1_timestamp_-1",
+   "examined_after": "50",
+   "time_after": "5ms"
   },
   {
    "id": "ix-4",
@@ -570,41 +579,48 @@
    "ns": "app_db.products",
    "idx": "{ category: 1, price: 1 }",
    "queries": 15,
-   "improvement": "~60% faster (sort in memory removed)"
+   "improvement": "638 → 20 docs examinados (sem SORT em memória)",
+   "name": "category_1_price_1",
+   "examined_after": "20",
+   "time_after": "3ms"
   }
  ],
  "perf_slow_queries": [
   {
    "ns": "app_db.orders",
-   "shape": "{ customerId: ?, status: ? }",
+   "shape": "{ customerId: ? } sort { createdAt: -1 }",
    "time": "412ms",
    "count": 1240,
    "examined": "12,400",
-   "idx": "COLLSCAN"
+   "idx": "COLLSCAN",
+   "suggestion_id": "ix-1"
   },
   {
    "ns": "app_db.sessions",
-   "shape": "{ userId: ? }",
+   "shape": "{ userId: ?, expiresAt: { $gt: ? } }",
    "time": "287ms",
    "count": 980,
    "examined": "8,900",
-   "idx": "COLLSCAN"
+   "idx": "COLLSCAN",
+   "suggestion_id": "ix-2"
   },
   {
    "ns": "analytics.events",
-   "shape": "{ eventType: ?, timestamp: {$gt:?} }",
+   "shape": "{ eventType: ?, timestamp: { $gt: ? } } sort { timestamp: -1 }",
    "time": "196ms",
    "count": 540,
-   "examined": "45,000",
-   "idx": "timestamp_1"
+   "examined": "561",
+   "idx": "timestamp_1",
+   "suggestion_id": "ix-3"
   },
   {
    "ns": "app_db.products",
    "shape": "{ category: ? } sort { price: 1 }",
    "time": "154ms",
    "count": 310,
-   "examined": "6,200",
-   "idx": "category_1"
+   "examined": "638",
+   "idx": "category_1",
+   "suggestion_id": "ix-4"
   },
   {
    "ns": "app_db.users",

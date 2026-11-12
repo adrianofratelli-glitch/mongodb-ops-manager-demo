@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 COPY backend/ ./backend/
 # The backend seeds its in-memory state from the same file as the mock client.
-COPY frontend/src/api/seed.json ./frontend/src/api/seed.json
+COPY frontend/src/api/seed.json frontend/src/api/lab_scenarios.json ./frontend/src/api/
 COPY --from=frontend-build /build/dist ./frontend/dist
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY docker/start.sh /start.sh
