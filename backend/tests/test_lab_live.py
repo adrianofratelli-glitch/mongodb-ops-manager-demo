@@ -26,16 +26,17 @@ pytestmark = [
 
 @pytest.fixture(scope="module")
 def client():
-    os.environ["OPSMGR_LAB_DB"] = "opsmgr_lab_test"
-    import lab
-    import main
+    with pytest.MonkeyPatch.context() as mp:  # restaura OPSMGR_LAB_DB ao fim do módulo
+        mp.setenv("OPSMGR_LAB_DB", "opsmgr_lab_test")
+        import lab
+        import main
 
-    assert lab.config()["db"].endswith("_test")
-    c = TestClient(main.app)
-    assert c.post("/api/lab/seed?force=true", headers=LAB).status_code == 200
-    c.post("/api/lab/reset", headers=LAB)
-    yield c
-    c.post("/api/lab/reset", headers=LAB)
+        assert lab.config()["db"].endswith("_test")
+        c = TestClient(main.app)
+        assert c.post("/api/lab/seed?force=true", headers=LAB).status_code == 200
+        c.post("/api/lab/reset", headers=LAB)
+        yield c
+        c.post("/api/lab/reset", headers=LAB)
 
 
 def test_status_ligado(client):

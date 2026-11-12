@@ -66,7 +66,7 @@ const AGENT_SEED = '109.0.0.9285-1'
 // então o contrato é o mesmo do backend sem MONGODB_URI — desligado, com motivo.
 const LAB_REASON = 'Build estático (GitHub Pages): sem backend nem MongoDB. O laboratório real roda só com o FastAPI local e MONGODB_URI.'
 const LAB_DISABLED = `Laboratório desligado: ${LAB_REASON}`
-const labIndexName = (s) => `opsmgr_lab_${s.id.replace('-', '_')}`
+const labIndexName = (s) => `opsmgr_lab_${s.id.replaceAll('-', '_')}`
 // Mesma sintaxe de mongosh do backend (lab.shell): datas viram ISODate.
 const shell = (v) => {
   if (Array.isArray(v)) return `[${v.map(shell).join(',')}]`
