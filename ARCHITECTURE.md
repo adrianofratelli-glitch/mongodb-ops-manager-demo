@@ -50,10 +50,13 @@ frontend/
     api/mock.js      # mesma API 100% no cliente, para o build do GitHub Pages
     api/seed.json    # estado inicial único dos dois modos
     api/lab_scenarios.json  # queries e índices do laboratório (backend e mock)
+    api/product_status.json # versão do OM, agentes e matriz de suporte do OM 9.0 (backend e mock)
     components/       # TopBar, Sidebar, MongoLeaf, LineChart, ui helpers
     modals/           # New Deployment, Connect, Agent Logs
     pages/            # uma por seção; só o Dashboard entra no bundle inicial
     lib/sections.js   # config da navegação
+    lib/product_notes.json  # nota 'Simulado / real / Atlas' de cada tela, com fonte
+    lib/ops_vs_atlas.json   # página 'Ops Manager × Atlas'
     lib/csv.js        # exportação CSV local (Activity, Audit, Agents)
     App.jsx           # shell: LeafyGreenProvider, dark mode, toast, roteamento
 ```
@@ -68,6 +71,8 @@ Monitoring e ciclo de vida:
 
 | Rota | O que faz |
 |---|---|
+| `GET /api/meta` | org, projeto, versão do OM, `agent_latest`, `support_matrix`, `checked_on` |
+| `POST /api/clusters` | 422 para série EOL no OM 9.0 (4.4, 5.0); série Deprecated (6.0) volta com `warning` |
 | `GET /api/metrics/{id}` | janela de 60 amostras + timestamps |
 | `GET /api/metrics/{id}/tick` | amostra seguinte (o front empurra na janela) |
 | `GET /api/realtime/{id}` | operações vivas do cluster, persistidas entre polls |

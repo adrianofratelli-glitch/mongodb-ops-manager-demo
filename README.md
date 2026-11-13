@@ -206,6 +206,29 @@ Performance Advisor counters) are illustrative only. The platform label
 (read on 2026-11-12); the simulation does not model other 9.0 features
 (OpenTelemetry export of agent metrics, direct-to-S3 backup).
 
+### Product fidelity (checked 2026-11-13)
+
+The demo stays a simulation and never needs a cluster; what changed is how close it
+is to today's product. Every product claim on screen has a dated source in
+[docs/status-de-produto.md](docs/status-de-produto.md) (Portuguese) and
+[ADR 0002](docs/adr/0002-simulacao-fiel-sem-cluster.md):
+
+- **Support matrix of Ops Manager 9.0** (single source `frontend/src/api/product_status.json`,
+  read by the backend and the mock): MongoDB 7.0, 8.0 and 9.0 supported, 6.0 *Deprecated*
+  (created with a warning, badge on `rs-staging`), 4.4 and 5.0 *EOL* (refused with 422).
+  `GET /api/meta` exposes the matrix, the latest agent and the check date.
+- **Every screen has a "Simulado" note**: what is fake there, what the real Ops Manager 9.0
+  does (with the Administration API endpoint when there is one, e.g.
+  `GET /api/public/v1.0/groups/{PROJECT-ID}/hosts/{HOST-ID}/performanceAdvisor/suggestedIndexes`),
+  how Atlas does it, and the official page it came from (`frontend/src/lib/product_notes.json`).
+- **"Ops Manager × Atlas" page**: ten topics (who operates what, automation and scaling,
+  upgrades, backup, Performance Advisor/Real-Time, monitoring, Search/Vector Search with a
+  self-managed `mongot`, Kubernetes, API, network), gains and losses on both sides, no prices,
+  one source per row (`frontend/src/lib/ops_vs_atlas.json`).
+- Seed dated November 2026; the Authentication page calls its list the *API Access List* of the
+  Administration API (Ops Manager has no Atlas-style network access list) and treats CSFLE /
+  Queryable Encryption as driver configuration.
+
 ---
 
 ## What the PoV covers
@@ -230,8 +253,11 @@ and IOPS rise until the node recovers automatically.
 | **Real-Time** | Per-cluster live operations and a functional `killOp` simulation |
 | **Backup / Restore** | Snapshots and point-in-time recovery |
 | **Alerts** | Open/closed views, settings, and one-hour acknowledgement |
-| **Security** | Users, RBAC, authentication options, IP access list, and audit log |
+| **Security** | Users, RBAC, authentication options, Administration API access list, and audit log |
+| **Ops Manager × Atlas** | Honest capability comparison with sources (no pricing) |
 | **Activity / Settings** | Event feed and deterministic demo reset |
+
+Every screen opens with a collapsible *Simulado* note: simulated here, real Ops Manager 9.0, Atlas, source.
 
 ---
 

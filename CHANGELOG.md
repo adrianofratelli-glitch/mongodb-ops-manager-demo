@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 (2026-11-13)
+
+- Product fidelity without a cluster (ADR `docs/adr/0002-simulacao-fiel-sem-cluster.md`, sources in `docs/status-de-produto.md`): single source `frontend/src/api/product_status.json` (Ops Manager 9.0.1, agents 109.0.x, support matrix) read by backend and mock; creating a cluster on MongoDB 4.4/5.0 is refused (EOL on Ops Manager 9.0), 6.0 is created with a *Deprecated* warning; `GET /api/meta` exposes `support_matrix`, `agent_latest`, `checked_on`.
+- Every screen shows a collapsible "Simulado · No Ops Manager 9.0 real · No Atlas" note with the real Administration API endpoint and official sources (`components/ProductNote.jsx`, `lib/product_notes.json`).
+- New "Ops Manager × Atlas" page (10 topics, no pricing, sources per row).
+- Seed moved from January 2024 to November 2026; history shows the agent upgrade to 109.0.0.9285-1 instead of a 6.0 patch in 2026. Settings/New Deployment no longer offer 5.0; Authentication shows the Administration API access list and no CSFLE project toggle.
+- Docker image now copies `product_status.json`. E2E `nav()` matches side-nav items with a counter ("Alerts 3").
+- Tests: backend 65 → 78 passed (+6 live skipped), mock parity 17 → 18, E2E mock and bridge 38 → 47 checks.
+
 ## 1.3.0 (2026-11-12)
 
 - Performance Advisor lab (optional, real MongoDB): with `MONGODB_URI` set, `backend/lab.py` seeds four deterministic synthetic collections in `opsmgr_lab_test` (default) and runs each suggested query with `explain("executionStats")` before and after a real `createIndexes` (`/api/lab/*`, "Prova no MongoDB real" panel); the commands shown are the ones sent to the server (`db.runCommand`, `ISODate`). Database name must be `opsmgr_lab` or `opsmgr_lab_<suffix>`; writes to a database not ending in `_test` need `ALLOW_DEMO_DB_WRITE=1`; POST routes require `X-Lab-Action: 1`; drops only its own `opsmgr_lab_*` indexes; never returns the connection string. Off (with a reason) when the URI is missing, in Docker without `--env-file` and in the GitHub Pages mock. ADR `docs/adr/0001-laboratorio-real-performance-advisor.md`.

@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field, field_validator
 import data
 import lab
 
-app = FastAPI(title="MongoDB Ops Manager — Demo API", version="1.3.0")
+app = FastAPI(title="MongoDB Ops Manager — Demo API", version="1.4.0")
 
 app.add_middleware(
     CORSMiddleware,

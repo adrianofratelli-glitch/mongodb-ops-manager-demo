@@ -18,6 +18,10 @@ do modal "Connect" (`frontend/src/modals/ConnectModal.jsx`), que mostra ao
 usuário snippets de código de exemplo (Node, Python, Java, C#) como o Ops
 Manager real faria, mas nada disso é executado.
 
+Cada tela abre com a nota "Simulado" (`components/ProductNote.jsx`): o que é inventado ali, o que o
+Ops Manager 9.0 real faria, o endpoint real da Administration API e como fica no Atlas, com fonte
+([ADR 0002](../adr/0002-simulacao-fiel-sem-cluster.md)).
+
 Por isso não existe `queries.md` com queries reais de aplicação contra um
 banco — ver seção "Consultas" abaixo, e o arquivo `docs/briefing/queries.md`
 documenta exatamente essa ausência mais o que existe de mais próximo
@@ -159,6 +163,7 @@ produto real não faria. Cada linha tem cenário em
 | Restore | Recusa cluster sem snapshot, standalone, ponto fora da janela PIT (do snapshot mais antigo ao mais recente), destino de topologia diferente, restore simultâneo na mesma origem/destino e destino em rolling upgrade; restore a partir de snapshot vira job `Snapshot`, não `PIT` | Restore só existe dentro da janela coberta pelo backup |
 | Restore em andamento | Destino (inclusive `same`) recusa terminate, upgrade, add node, step down e resync; origem recusa terminate; o snapshot em uso não pode ser apagado (todos 409). Job que perde origem/destino por outro caminho termina `failed` com `error`, nunca `completed` | Automated restore reescreve o destino via Automation; remover o deployment apaga os snapshots ([fontes no README](../../README.md#what-is-simulated-and-which-rules-are-real)) |
 | Automation | Mudança pendente de cluster terminado é recusada (descartar); upgrade pendente vira rolling upgrade real da simulação; config change grava `config` no cluster | — |
+| New Deployment (`POST /api/clusters`) | Série EOL no Ops Manager 9.0 (4.4, 5.0) é recusada com 422; série Deprecated (6.0) é criada com `warning`; matriz em `frontend/src/api/product_status.json`, a mesma do mock | [Matriz de compatibilidade do OM 9.0](https://www.mongodb.com/docs/ops-manager/current/reference/mongodb-compatibility/) ([status de produto](../status-de-produto.md)) |
 | Create Index (tabela simulada) | Remove a sugestão e troca a slow query ligada (`suggestion_id`) para o índice novo, com docs examinados e tempo pós-índice | Os números pós-índice são os medidos pelo laboratório real |
 | Deletes (roles, IP, alert config, sugestão de índice) | Por chave estável (nome, rede, `id`), não por posição — duas abas não apagam o item errado; duplicatas recusadas com 409 | — |
 
@@ -169,7 +174,8 @@ simulação, não medidas do produto.
 
 - Sem Ops Manager real, Automation Agent ou Backup Daemon.
 - Sem persistência entre reinícios do processo (o laboratório guarda seus dados no banco `opsmgr_lab*`).
-- Versões exibidas: Ops Manager 9.0.1 e MongoDB Agent `109.0.0.9285-1` → `109.0.1.9309-1` (release notes oficiais lidas em 2026-11-12); recursos novos do 9.0 (export OTel de métricas do agente, backup direto para S3) não são simulados.
+- Versões exibidas: Ops Manager 9.0.1 e MongoDB Agent `109.0.0.9285-1` → `109.0.1.9309-1` (release notes oficiais reconferidas em 2026-11-13); recursos novos do 9.0 (export OTel de métricas do agente, backup direto para S3) não são simulados, só citados nas notas de tela.
+- Fidelidade sem cluster ([ADR 0002](../adr/0002-simulacao-fiel-sem-cluster.md)): cada afirmação de produto tem fonte datada em [`docs/status-de-produto.md`](../status-de-produto.md); números de patch são fictícios.
 - Sem credenciais, hosts ou identidade de cliente reais em lugar nenhum.
 - `/health/live` comprova apenas liveness do processo backend, não validação
   funcional de cada módulo.

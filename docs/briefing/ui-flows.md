@@ -11,11 +11,11 @@ imagem que não existem no projeto.
 ## Navegação (SideNav)
 
 Definida em `frontend/src/lib/sections.js`, renderizada por
-`frontend/src/components/Sidebar.jsx`. Cinco grupos, 16 telas:
+`frontend/src/components/Sidebar.jsx`. Cinco grupos, 17 telas:
 
 | Grupo | Telas | Componente (`frontend/src/pages/`) |
 |---|---|---|
-| Visão geral | Dashboard, Activity Feed | `Dashboard.jsx`, `Activity.jsx` |
+| Visão geral | Dashboard, Activity Feed, Ops Manager × Atlas | `Dashboard.jsx`, `Activity.jsx`, `OpsVsAtlas.jsx` |
 | Implantações | All Clusters, Automation, Agents, Project Settings | `Deployments.jsx`, `Automation.jsx`, `Agents.jsx`, `Settings.jsx` |
 | Monitoramento | Metrics, Performance Advisor, Real-Time, Alerts | `Metrics.jsx`, `PerfAdvisor.jsx`, `Realtime.jsx`, `Alerts.jsx` |
 | Proteção de dados | Backup, Restore | `Backup.jsx`, `Restore.jsx` |
@@ -28,6 +28,22 @@ react-router. Só `Dashboard` entra no bundle inicial; o resto é
 Em telas estreitas (`<768px`), a SideNav vira uma faixa vertical compacta
 acima do conteúdo (`Sidebar.jsx`, uso de `Select` do LeafyGreen para trocar
 de grupo), sem overflow horizontal.
+
+## Nota "Simulado" em toda tela (`ProductNote.jsx`)
+
+O `App.jsx` renderiza `components/ProductNote.jsx` acima de cada página, com o texto de
+`frontend/src/lib/product_notes.json` para a seção atual. Fechada, mostra só o que é simulado ali;
+aberta, mostra **No Ops Manager 9.0 real** (o que o produto faria), o **endpoint real** da
+Administration API quando houver (por exemplo, `GET /api/public/v1.0/groups/{PROJECT-ID}/alerts` em Alerts),
+**No Atlas** e as fontes oficiais com a data da leitura (2026-11-13). `backend/tests/test_product_status.py`
+falha se uma seção de `sections.js` ficar sem nota; o E2E abre a nota nas 17 telas.
+
+## Ops Manager × Atlas (`OpsVsAtlas.jsx`)
+
+Página estática, sem chamada de API: dez temas de `frontend/src/lib/ops_vs_atlas.json` (quem opera o quê,
+automação e escala, upgrades, backup, Performance Advisor e Real-Time, monitoramento, Search e Vector Search
+com `mongot` autogerenciado, Kubernetes, API, rede), com o lado Ops Manager 9.0, o lado Atlas, uma leitura de
+ganho/perda e as fontes. Sem preço e sem dado de cliente. Em tela estreita, as quatro colunas viram blocos.
 
 ## Dashboard (`Dashboard.jsx`)
 
@@ -165,8 +181,10 @@ do banner do Dashboard até expirar ou até ser resolvido. Resolve (`POST
   (`GET/POST/DELETE /api/users`), com validação de nome único e formato.
 - **Roles** (`Roles.jsx`): CRUD de custom roles (`GET/POST/DELETE
   /api/roles`).
-- **Auth** (`Auth.jsx`): IP Access List: a tela só lista e remove IP (`GET/DELETE
+- **Auth** (`Auth.jsx`): **API Access List · Ops Manager Administration API** (no Ops Manager a lista de IPs é
+  por API key; a rede do `mongod` é firewall e `bindIp` do cliente): a tela só lista e remove IP (`GET/DELETE
   /api/security/ip`); `addIp` (`POST`, com validação de CIDR no backend) existe em `client.js`, mas nenhuma tela chama.
+  CSFLE e Queryable Encryption aparecem como texto ("configurados no driver"), não como chave.
 - **Audit** (`Audit.jsx`): `GET /api/audit`, lista fixa de eventos de
   auditoria do seed. Exporta CSV real do que está em tela — filtro aplicado
   é respeitado na exportação.

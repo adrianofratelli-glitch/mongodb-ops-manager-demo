@@ -9,19 +9,22 @@ Telas e roteiro: [briefing/ui-flows.md](briefing/ui-flows.md). Sobre "queries": 
 ```
 backend/                     API FastAPI (porta 8077), tudo em memória
   main.py                    as 60+ rotas /api/* e TODAS as regras de negócio simuladas (1.216 linhas; abrir aqui primeiro)
-  data.py                    carrega o seed e devolve uma cópia nova (usado no start e no reset)
+  data.py                    carrega o seed (cópia nova no start e no reset) e o product_status.json
   tests/                     pytest (ver seção 6) + scenarios_adversarial.json
 frontend/                    React + Vite + LeafyGreen (porta 5377, proxy /api -> 8077: vite.config.js)
   src/App.jsx                casca: TopBar, Sidebar, página atual, contadores, gaveta "Ver chamada simulada"
-  src/lib/sections.js        lista das 16 telas e dos 5 grupos do menu lateral
+  src/lib/sections.js        lista das 17 telas e dos 5 grupos do menu lateral
+  src/lib/product_notes.json nota "Simulado / No Ops Manager real / No Atlas" de cada tela, com fonte
+  src/lib/ops_vs_atlas.json  linhas da página "Ops Manager × Atlas" (sem preço, uma fonte por linha)
   src/pages/index.js         mapa id da tela -> componente (só o Dashboard entra no bundle inicial)
   src/pages/*.jsx            uma página por tela (Dashboard, Deployments, Automation, Agents, Settings, Metrics,
-                             PerfAdvisor, Realtime, Alerts, Backup, Restore, Users, Roles, Auth, Audit, Activity)
+                             PerfAdvisor, Realtime, Alerts, Backup, Restore, Users, Roles, Auth, Audit, Activity, OpsVsAtlas)
   src/modals/                NewDeploymentModal, ConnectModal (strings de exemplo), AgentLogsModal
-  src/components/            Sidebar, TopBar, LineChart (@lg-charts), QueryDetails, ui.jsx (pedaços de UI), MongoLeaf
+  src/components/            Sidebar, TopBar, ProductNote (nota por tela), LineChart (@lg-charts), QueryDetails, ui.jsx, MongoLeaf
   src/api/client.js          camada HTTP: axios (modo real) ou MockAPI (modo GitHub Pages) + evento de rastro de chamada
   src/api/mock.js            reimplementa o backend no navegador (694 linhas) para o build estático
   src/api/seed.json          FONTE ÚNICA do estado inicial: o backend e o mock leem o mesmo arquivo
+  src/api/product_status.json versão do OM, agentes e matriz de suporte do OM 9.0 (backend e mock)
   src/lib/csv.js             exportação CSV real (Agents, Audit, Activity)
   src/pov-signature.css      estilo de marca
   tests/                     mock_parity.mjs e e2e_ui.mjs
@@ -97,10 +100,10 @@ Saúde: `GET /health/live` (`main.py:50`).
 
 | O que parece query | Onde está de verdade | O que é |
 |---|---|---|
-| Totais do dashboard (healthy/warning, hosts) | `backend/main.py::get_dashboard` (:189) | `sum(...)` / list comprehension sobre `STATE["clusters"]` |
-| Alerta mais severo | `main.py::_top_alert` (:364) | `sorted(...)[0]` sobre `alerts_open` |
-| Janela de PIT e tamanhos de backup | `main.py::_pit_windows` (:923), `_size_gb` (:916), `get_backup` (:951) | min/max/soma em Python |
-| "Create Index" do Performance Advisor | `main.py::create_index` (:838) | remove item da lista em memória |
+| Totais do dashboard (healthy/warning, hosts) | `backend/main.py::get_dashboard` (:212) | `sum(...)` / list comprehension sobre `STATE["clusters"]` |
+| Alerta mais severo | `main.py::_top_alert` (:387) | `sorted(...)[0]` sobre `alerts_open` |
+| Janela de PIT e tamanhos de backup | `main.py::_pit_windows` (:947), `_size_gb` (:940), `get_backup` (:975) | min/max/soma em Python |
+| "Create Index" do Performance Advisor | `main.py::create_index` (:862) | remove item da lista em memória |
 | Estado inicial | `backend/data.py::seed` (:19) lendo `frontend/src/api/seed.json` | `json.load` + `copy.deepcopy` |
 
 Se perguntarem "onde está a query que popula a tela": é `STATE` em memória, carregado de `seed.json`. Detalhes em [briefing/queries.md](briefing/queries.md).
@@ -121,7 +124,7 @@ Se perguntarem "onde está a query que popula a tela": é `STATE` em memória, c
 - Itens do menu lateral -> `frontend/src/lib/sections.js` e o mapa em `frontend/src/pages/index.js`.
 - Texto/colunas de uma tela -> `frontend/src/pages/<Tela>.jsx`.
 - Adicionar rota -> `backend/main.py` (decorator `@app`), método em `frontend/src/api/client.js` (`RealAPI`) e em `mock.js`.
-- Gráficos de Metrics (séries, ruído) -> `backend/main.py::_point` (:663) e `_walk` (:627); desenho em `frontend/src/components/LineChart.jsx` e `pages/Metrics.jsx`.
+- Gráficos de Metrics (séries, ruído) -> `backend/main.py::_point` (:687) e `_walk` (:661); desenho em `frontend/src/components/LineChart.jsx` e `pages/Metrics.jsx`.
 - Texto da gaveta "Ver chamada simulada" -> `frontend/src/components/QueryDetails.jsx` e `App.jsx:64`.
 - Strings de conexão do modal "Connect" -> `frontend/src/modals/ConnectModal.jsx`.
 - Porta -> `start.sh` (:5-6), `frontend/vite.config.js` (5377 e proxy 8077), CORS em `backend/main.py:27-33`.
@@ -137,6 +140,7 @@ Comandos (README): `backend/.venv/bin/pytest -q backend/tests`; `(cd frontend &&
 - `backend/tests/test_reset_hostile_adversarial.py` — reset volta ao estado exato, nomes/payloads hostis, corpo malformado, restore no futuro, concorrência (upgrade, restore, apply, snapshot, reset com escritas).
 - `backend/tests/test_restore_lifecycle.py` — apagar origem/destino durante restore, job que perde o destino, reset no meio do job.
 - `backend/tests/test_scenarios_adversarial.py` — executa `scenarios_adversarial.json` contra o FastAPI.
+- `backend/tests/test_product_status.py` — matriz do OM 9.0 (EOL recusado, 6.0 com aviso), meta, seed sem datas de 2024, nota com fonte em toda seção, comparativo sem preço, Dockerfile copia os JSON.
 - `backend/tests/test_cors.py` — origens permitidas; `asgi_bridge.py` é apoio (ponte ASGI para o E2E).
 - `backend/tests/test_lab.py` — laboratório sem rede: desligado sem URI, nome do banco com âncora, escrita sem `_test` exige `ALLOW_DEMO_DB_WRITE`, header `X-Lab-Action` nos POST, falha de infra sem vazar URI, leitor de plano (clássico e SBE), MQL e seed determinístico.
 - `backend/tests/test_lab_live.py` — laboratório contra MongoDB real em `opsmgr_lab_test` (só com `OPSMGR_LIVE=1` e `MONGODB_URI`): COLLSCAN/SORT antes, IXSCAN depois, docs examinados ≥ 10× menores, reset só dos índices do lab.
