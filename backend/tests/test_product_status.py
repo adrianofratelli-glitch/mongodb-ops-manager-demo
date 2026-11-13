@@ -23,6 +23,8 @@ client = TestClient(main.app)
 PRODUCT = json.loads((FRONT / "api" / "product_status.json").read_text(encoding="utf-8"))
 NOTES = json.loads((FRONT / "lib" / "product_notes.json").read_text(encoding="utf-8"))
 COMPARE = json.loads((FRONT / "lib" / "ops_vs_atlas.json").read_text(encoding="utf-8"))
+# Páginas que descrevem o Atlas: docs/atlas/... e as opções de deployment do Search no Atlas.
+ATLAS_DOC = re.compile(r"mongodb\.com/docs/(atlas/|search/deployment/|vector-search/deployment/)")
 SECTION_IDS = re.findall(r"\{ id: '([^']+)'", (FRONT / "lib" / "sections.js").read_text(encoding="utf-8"))
 
 
@@ -87,6 +89,8 @@ def test_toda_secao_tem_nota_de_simulado_real_e_atlas_com_fonte():
         for field in ("simulated", "real", "atlas"):
             assert len(note[field]) > 20, (sid, field)
         assert note["sources"] and all(u.startswith("https://www.mongodb.com/") for u in note["sources"]), sid
+        # O lado Atlas precisa de fonte do Atlas, não só de páginas do Ops Manager.
+        assert any(ATLAS_DOC.search(u) for u in note["sources"]), f"nota sem fonte do Atlas: {sid}"
         if "api" in note:
             assert re.match(r"^(GET|PUT|POST|PATCH) /api/public/v1\.0/groups/\{PROJECT-ID\}/", note["api"]), sid
     assert set(NOTES["notes"]) == set(SECTION_IDS), "nota órfã ou faltando"
@@ -101,6 +105,11 @@ def test_comparativo_cobre_os_temas_pedidos_sem_preco():
     for r in COMPARE["rows"]:
         assert r["ops_manager"] and r["atlas"] and r["verdict"], r["topic"]
         assert r["sources"] and all(u.startswith("https://www.mongodb.com/") for u in r["sources"]), r["topic"]
+        assert any(ATLAS_DOC.search(u) for u in r["sources"]), f"linha sem fonte do Atlas: {r['topic']}"
+    k8s = next(r for r in COMPARE["rows"] if r["topic"] == "Kubernetes")
+    assert "Atlas Kubernetes Operator" in k8s["atlas"]
+    alerts = next(r for r in COMPARE["rows"] if "alertas" in r["topic"].lower())
+    assert any("/docs/atlas/configure-alerts" in u for u in alerts["sources"])
     search = next(r for r in COMPARE["rows"] if "Search" in r["topic"])
     assert "mongot" in search["ops_manager"] and "MCK" in search["ops_manager"]
 
