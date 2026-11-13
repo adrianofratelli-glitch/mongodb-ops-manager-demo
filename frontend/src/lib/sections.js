@@ -3,6 +3,7 @@ export const SECTIONS = [
   { group: 'Visão geral', items: [
     { id: 'dashboard', label: 'Dashboard', glyph: 'Dashboard' },
     { id: 'activity', label: 'Activity Feed', glyph: 'ActivityFeed' },
+    { id: 'ops-vs-atlas', label: 'Ops Manager × Atlas', glyph: 'Cloud' },
   ]},
   { group: 'Implantações', items: [
     { id: 'deployments', label: 'All Clusters', glyph: 'Database' },

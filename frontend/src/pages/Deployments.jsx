@@ -12,6 +12,7 @@ import { PageHeader, DataTable, MetaRow, Loading, EmptyState } from '../componen
 import NewDeploymentModal from '../modals/NewDeploymentModal'
 import ConnectModal from '../modals/ConnectModal'
 import { API, errMsg } from '../api/client'
+import PRODUCT from '../api/product_status.json'
 
 const TYPE_BADGE = { rs: ['blue', 'Replica Set'], sharded: ['green', 'Sharded Cluster'], standalone: ['yellow', 'Standalone'] }
 // Próximo patch da mesma release series (ex.: 7.0.5 → 7.0.6): o caminho seguro
@@ -20,6 +21,13 @@ const nextPatch = (v) => { const [a, b, c] = String(v).split('-')[0].split('.').
 // Próxima release series (ex.: 8.0 → 9.0), um degrau por vez como no Ops Manager.
 const SERIES = ['4.4', '5.0', '6.0', '7.0', '8.0', '9.0']
 const nextMajor = (v) => { const [a, b] = String(v).split('.'); const i = SERIES.indexOf(`${a}.${b}`); return i >= 0 && i < SERIES.length - 1 ? `${SERIES[i + 1]}.0` : null }
+
+// Matriz de compatibilidade do Ops Manager 9.0 (fonte: api/product_status.json).
+const seriesOf = (v) => String(v).split('.').slice(0, 2).join('.')
+const SUPPORT_BADGE = {
+  deprecated: ['yellow', 'Deprecated no OM 9.0', 'Ainda funciona no Ops Manager 9.0, mas o suporte sai na próxima versão (matriz de compatibilidade).'],
+  eol: ['red', 'EOL no OM 9.0', 'Fora da matriz do Ops Manager 9.0.'],
+}
 
 const STATUS_BADGE = { healthy: ['green', '● Healthy'], warning: ['yellow', '● Warning'], critical: ['red', '● Critical'] }
 
@@ -89,6 +97,10 @@ function ClusterBlock({ c, toast, reload }) {
         <Subtitle style={{ fontSize: 15 }}>{c.name}</Subtitle>
         <Badge variant={sb}>{sl}</Badge>
         <Description style={{ marginLeft: 8 }}>MongoDB {c.version} · {c.nodes.length} node{c.nodes.length > 1 ? 's' : ''}</Description>
+        {SUPPORT_BADGE[PRODUCT.support_matrix[seriesOf(c.version)]] && (() => {
+          const [v, label, why] = SUPPORT_BADGE[PRODUCT.support_matrix[seriesOf(c.version)]]
+          return <span title={why}><Badge variant={v}>{label}</Badge></span>
+        })()}
         {upgrading && (
           <Badge variant="blue" aria-live="polite">
             Rolling upgrade → {c.upgrade.target}: {c.upgrade.done}/{c.upgrade.total} processos (simulado)

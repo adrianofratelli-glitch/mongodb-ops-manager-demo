@@ -1,0 +1,76 @@
+{
+ "_doc": "Comparativo Ops Manager 9.0 (on-prem) × Atlas para a página 'Ops Manager × Atlas'. Sem preço e sem dado de cliente. Cada linha cita a doc oficial lida em checked_on.",
+ "checked_on": "2026-11-13",
+ "rows": [
+  {
+   "topic": "Quem opera o quê",
+   "ops_manager": "O time do cliente opera os hosts, o próprio Ops Manager (aplicação e application database), os snapshot stores e o upgrade do Ops Manager e dos agentes. O Ops Manager 8.0 tem fim de vida em 31/10/2027; o 9.0 ainda não tem data.",
+   "atlas": "A MongoDB opera a infraestrutura, o plano de controle, o backup e os upgrades; o cliente escolhe tier, região e política.",
+   "verdict": "on-prem ganha controle total; perde horas de operação e um produto a mais para manter atualizado",
+   "sources": ["https://www.mongodb.com/legal/support-policy/lifecycles", "https://www.mongodb.com/docs/ops-manager/current/application/"]
+  },
+  {
+   "topic": "Automação e escala",
+   "ops_manager": "A Automation aplica o automation config nos hosts que você provisionou e onde instalou o MongoDB Agent. Hardware, sistema operacional, disco e capacidade são seus.",
+   "atlas": "Cria também a infraestrutura. Auto-scaling reativo de compute e storage; o preditivo (só compute, só para cima, com 2 semanas de histórico) existe em clusters dedicados.",
+   "verdict": "Atlas ganha em elasticidade; on-prem escala no ritmo da sua compra de hardware",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/reference/api/automation-config/update-automation-config/", "https://www.mongodb.com/docs/atlas/cluster-autoscaling-compute-core/"]
+  },
+  {
+   "topic": "Upgrades de versão",
+   "ops_manager": "Você decide quando. Rolling, um processo por vez, uma série por vez (7.0 → 8.0 → 9.0). O OM 9.0 gerencia 7.0, 8.0 e 9.0; 6.0 está Deprecated. Depois do fim de vida, o upgrade é responsabilidade sua.",
+   "atlas": "Patches automáticos. Com Auto Upgrades também majors e minors; em Manual Upgrades você escolhe o major. Antes do fim de vida o Atlas avisa com pelo menos 6 meses e, se não houver ação, faz o upgrade.",
+   "verdict": "on-prem ganha controle de janela e certificação; Atlas tira o risco de ficar numa versão sem suporte",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/reference/mongodb-compatibility/", "https://www.mongodb.com/docs/manual/release-notes/9.0-upgrade-replica-set/", "https://www.mongodb.com/docs/atlas/atlas-versions/", "https://www.mongodb.com/docs/mongodb-versions/"]
+  },
+  {
+   "topic": "Backup e restore",
+   "ops_manager": "Snapshots incrementais em snapshot stores que você opera (file system, blockstore ou S3-compatível), PIT pelo oplog. No 9.0: envio direto ao S3 e Object Lock também nos oplog slices.",
+   "atlas": "Cloud Backup com snapshot nativo do provedor, Continuous Cloud Backup para PIT, distribuição multirregião e Backup Compliance Policy (WORM, desligar exige verificação com o suporte).",
+   "verdict": "Funcionalidade próxima; no on-prem a imutabilidade e o storage são problema seu",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/admin/backup/snapshot-storage-page/", "https://www.mongodb.com/docs/ops-manager/current/release-notes/application/", "https://www.mongodb.com/docs/atlas/architecture/current/backups/"]
+  },
+  {
+   "topic": "Performance Advisor e Real-Time",
+   "ops_manager": "PA com sugestão de índice, criação pela tela (build rolling opcional) e sugestões de remoção; exige cluster na Automation. Real-Time Panel com Kill Op para Data Access Admin.",
+   "atlas": "Mesmos recursos a partir do M10. Clusters Flex não têm PA nem Real-Time Panel.",
+   "verdict": "Paridade no essencial: este é o ponto forte do Enterprise Advanced",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/tutorial/performance-advisor/", "https://www.mongodb.com/docs/ops-manager/current/view-real-time-metrics/", "https://www.mongodb.com/docs/atlas/reference/flex-limitations/"]
+  },
+  {
+   "topic": "Monitoramento e alertas",
+   "ops_manager": "Métricas e alertas no Ops Manager; no 9.0, export opcional das métricas do agente para a sua plataforma OpenTelemetry.",
+   "atlas": "Métricas e alertas gerenciados, com categorias do serviço (por exemplo, Auto-Scaling).",
+   "verdict": "on-prem integra melhor com a observabilidade que o cliente já tem; Atlas não exige montar nada",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/release-notes/application/", "https://www.mongodb.com/docs/ops-manager/current/reference/api/alerts/"]
+  },
+  {
+   "topic": "Search e Vector Search",
+   "ops_manager": "O Ops Manager não gerencia o mongot. No Enterprise, o mongot roda em Kubernetes pelo MongoDB Controllers for Kubernetes (MCK), ligado ao mongod gerenciado pelo Ops Manager. A versão self-managed virou GA em 30/06/2026 (mongot 1.70.1) e pede MongoDB Server 8.3.4 ou posterior (8.0 não serve). Métricas, alertas e FTDC do mongot ficam com o cliente.",
+   "atlas": "Search e Vector Search gerenciados: o Atlas opera o mongot, a métrica de Search e os alertas.",
+   "verdict": "Maior diferença hoje: busca e RAG on-prem exigem Kubernetes, MongoDB recente e um time para operar o mongot",
+   "sources": ["https://www.mongodb.com/docs/search/self-managed/current/", "https://www.mongodb.com/docs/search/self-managed/current/deployment/compatibility-requirements/", "https://www.mongodb.com/docs/search/self-managed/current/release-notes/", "https://www.mongodb.com/docs/search/self-managed/current/deployment/monitoring/"]
+  },
+  {
+   "topic": "Kubernetes",
+   "ops_manager": "MCK (MongoDB Controllers for Kubernetes) substitui o Enterprise Kubernetes Operator, que está depreciado e sem novos releases.",
+   "atlas": "Não se aplica da mesma forma: o plano de controle é o próprio Atlas, declarável por Admin API ou Terraform.",
+   "verdict": "Material novo deve citar MCK, nunca o operador antigo",
+   "sources": ["https://www.mongodb.com/docs/kubernetes/current/tutorial/migrate-to-mck/"]
+  },
+  {
+   "topic": "API e automação externa",
+   "ops_manager": "Ops Manager Administration API em /api/public/v1.0, autenticação digest com API keys; cada chave tem a sua lista de IPs.",
+   "atlas": "Atlas Admin API v2 versionada por recurso; service accounts OAuth2 são o método recomendado; provider Terraform oficial.",
+   "verdict": "Atlas tem a API mais moderna; a do Ops Manager é estável e conhecida",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/reference/api/alerts-acknowledge-alert/", "https://www.mongodb.com/docs/ops-manager/current/tutorial/configure-public-api-access/", "https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/authentication"]
+  },
+  {
+   "topic": "Rede e segurança",
+   "ops_manager": "O isolamento de rede do mongod é do cliente (firewall, bindIp, TLS). O Ops Manager controla de onde as API keys podem chamar.",
+   "atlas": "IP access list de dados do projeto, separada da lista do plano de controle, mais peering e private endpoints gerenciados.",
+   "verdict": "on-prem ganha para ambientes isolados e regulados; Atlas entrega o controle pronto",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/tutorial/configure-public-api-access/", "https://www.mongodb.com/docs/atlas/architecture/current/network-security/"]
+  }
+ ]
+}

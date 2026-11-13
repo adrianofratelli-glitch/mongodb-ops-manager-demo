@@ -149,3 +149,56 @@ a { text-decoration: none; }
   white-space: nowrap;
   border: 0;
 }
+
+/* "O que é simulado aqui": nota por tela (components/ProductNote.jsx). */
+.ops-product-note {
+  margin: 0 0 16px;
+  border: 1px solid rgba(255, 173, 0, .45);
+  border-radius: 8px;
+  background: rgba(255, 173, 0, .06);
+  color: #e8edeb;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ops-product-note summary {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style-position: outside;
+}
+.ops-product-note summary:focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+.ops-product-note__tag {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid #ffad00;
+  border-radius: 4px;
+  color: #ffd27a;
+  font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+.ops-product-note dl { margin: 0; padding: 0 14px 12px; display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 6px 16px; }
+.ops-product-note dt { color: #c1c7c6; font-weight: 600; }
+.ops-product-note dd { margin: 0; overflow-wrap: anywhere; }
+.ops-product-note code { font-size: 12px; }
+.ops-product-note__sources { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.ops-product-note a, .ops-compare__sources a { color: #71f6ba; }
+@media (max-width: 720px) {
+  .ops-product-note dl { grid-template-columns: 1fr; }
+}
+
+/* Página "Ops Manager × Atlas" (pages/OpsVsAtlas.jsx). */
+.ops-compare { display: flex; flex-direction: column; gap: 12px; }
+.ops-compare__row { display: grid; grid-template-columns: 160px 1fr 1fr 1fr; gap: 16px; align-items: start; }
+.ops-compare__head { padding: 0 24px; color: #c1c7c6; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.ops-compare__label { display: none; }
+.ops-compare__sources { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; overflow-wrap: anywhere; }
+@media (max-width: 960px) {
+  .ops-compare__row { grid-template-columns: 1fr; gap: 8px; }
+  .ops-compare__head { display: none; }
+  .ops-compare__label { display: block; color: #c1c7c6; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+}
+@media (forced-colors: active) {
+  .ops-product-note, .ops-product-note__tag { border-color: CanvasText; color: CanvasText; }
+}

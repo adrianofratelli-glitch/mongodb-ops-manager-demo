@@ -1,0 +1,141 @@
+{
+ "_doc": "O que cada tela simula e o que viria do Ops Manager 9.0 real. Afirmações conferidas na doc oficial em checked_on (fontes em cada item e em docs/status-de-produto.md). 'inferido' marca o que a demo deduz do mecanismo descrito, sem frase literal na doc.",
+ "checked_on": "2026-11-13",
+ "notes": {
+  "dashboard": {
+   "simulated": "Clusters, hosts, alertas e a contagem de snapshots vêm do seed fictício em memória (seed.json). Nada é coletado de servidor nenhum.",
+   "real": "O Ops Manager agrega o que os MongoDB Agents instalados nos hosts do cliente reportam: automação, monitoramento e backup.",
+   "atlas": "No Atlas a mesma visão existe sem agentes para instalar e sem servidores do Ops Manager para operar.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/application/"]
+  },
+  "activity": {
+   "simulated": "Eventos do seed mais os gerados pelas ações desta demo.",
+   "real": "O Activity Feed do projeto registra eventos de operação; por exemplo, o fim de um rolling index build criado pelo Performance Advisor gera um evento e um e-mail ao Project Owner.",
+   "atlas": "O Atlas tem Activity Feed equivalente por projeto e organização.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/tutorial/performance-advisor/"]
+  },
+  "deployments": {
+   "simulated": "Nós, upgrades (3 s por processo), step down, resync e terminate rodam em memória. Ordem do rolling upgrade e recusas seguem a doc (tabela no README). Números de patch (7.0.5, 9.0.7…) são fictícios; as séries são as reais.",
+   "real": "A Automation aplica o automation config e os agentes convergem um processo por vez. O OM 9.0 suporta MongoDB 7.0, 8.0 e 9.0; 6.0 está Deprecated; 5.0 e 4.4 são EOL. O 9.0 exige partir de 8.0 (ou 8.3): de 7.0 é preciso passar por 8.0.",
+   "api": "PUT /api/public/v1.0/groups/{PROJECT-ID}/automationConfig",
+   "atlas": "No Atlas os patches chegam sozinhos; com Auto Upgrades também majors e minors. Não há host, agente ou binário para gerenciar.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/reference/mongodb-compatibility/",
+    "https://www.mongodb.com/docs/manual/release-notes/9.0-upgrade-replica-set/",
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/automation-config/update-automation-config/",
+    "https://www.mongodb.com/docs/atlas/atlas-versions/"
+   ]
+  },
+  "automation": {
+   "simulated": "Mudanças pendentes e histórico vêm do seed; aplicar uma mudança só altera o estado em memória.",
+   "real": "Toda mudança vira uma nova versão do automation config do projeto; os agentes leem e aplicam até chegar ao estado pedido.",
+   "api": "PUT /api/public/v1.0/groups/{PROJECT-ID}/automationConfig (exige Project Automation Admin na variante noSecrets)",
+   "atlas": "No Atlas o equivalente é editar o cluster (UI, Admin API v2 ou Terraform); a orquestração é do serviço.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/automation-config/update-automation-config/",
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/automation-config/update-automation-config-no-secrets/"
+   ]
+  },
+  "agents": {
+   "simulated": "Lista, logs e Upgrade All são fictícios. As versões são as reais do release.",
+   "real": "Ops Manager 9.0.0 (29/09/2026) traz o MongoDB Agent 109.0.0.9285-1; o 9.0.1 (05/10/2026) traz o 109.0.1.9309-1. O 9.0 também exporta, se ligado, métricas do agente para uma plataforma OpenTelemetry.",
+   "atlas": "No Atlas não existe agente para instalar nem atualizar.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/release-notes/application/"]
+  },
+  "settings": {
+   "simulated": "Campos somente leitura. Reset Demo é uma ação desta demo, não do produto.",
+   "real": "Em Project Settings fica, por exemplo, a chave 'Performance Advisor and Profiler' (só Project Owner muda).",
+   "atlas": "O Atlas tem Project Settings equivalentes; o Performance Advisor só existe a partir do M10.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/tutorial/performance-advisor/"]
+  },
+  "metrics": {
+   "simulated": "Séries geradas por passeio aleatório no backend ou no mock, numa janela móvel de 60 s.",
+   "real": "As métricas vêm dos agentes de monitoramento de cada host; no 9.0 podem ir também para a sua plataforma via OpenTelemetry (opt-in).",
+   "atlas": "O Atlas mostra as mesmas famílias de métricas sem infraestrutura de monitoração para manter.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/release-notes/application/"]
+  },
+  "perf-advisor": {
+   "simulated": "Sugestões, slow queries e o Create Index desta tabela mudam só o estado em memória. Os docs examinados batem com o laboratório opcional (desligado por padrão; liga só com MONGODB_URI).",
+   "real": "O PA lê até 200.000 linhas recentes do log (até 20.000 slow queries), mostra até 20 formas de query e classifica o impacto em High ou Medium. O índice é criado na própria tela, um por vez, com build rolling opcional. Exige cluster gerenciado pela Automation e não sugere nada com log no formato ctime.",
+   "api": "GET /api/public/v1.0/groups/{PROJECT-ID}/hosts/{HOST-ID}/performanceAdvisor/suggestedIndexes (também /slowQueryLogs e /namespaces; os endpoints do PA são só de leitura)",
+   "atlas": "No Atlas o PA existe a partir do M10; clusters Flex não têm Performance Advisor nem Real-Time Panel.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/tutorial/performance-advisor/",
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/performance-advisor/",
+    "https://www.mongodb.com/docs/atlas/reference/flex-limitations/"
+   ]
+  },
+  "realtime": {
+   "simulated": "Operações e gráficos são inventados; Kill Op tira a operação da lista em memória.",
+   "real": "O Real-Time Performance Panel mostra as operações mais lentas de db.currentOp() e as coleções mais quentes (mongotop). Quem tem Data Access Admin vê Kill Op e, em transação inativa, Kill Session.",
+   "atlas": "No Atlas o painel existe em M10+; Kill Op pede Project Owner, Project Data Access Admin ou Project Real Time Performance Operator.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/view-real-time-metrics/",
+    "https://www.mongodb.com/docs/atlas/real-time-performance-panel/"
+   ]
+  },
+  "alerts": {
+   "simulated": "Alertas e configurações vêm do seed. Acknowledge e Resolve só mudam o estado em memória; Resolve é um atalho desta demo.",
+   "real": "A API pública lista alertas e reconhece ou desfaz o reconhecimento (PATCH com acknowledgedUntil). Não há 'resolver' manual na API: o alerta fecha quando a condição deixa de valer (inferido).",
+   "api": "GET /api/public/v1.0/groups/{PROJECT-ID}/alerts · PATCH /api/public/v1.0/groups/{PROJECT-ID}/alerts/{ALERT-ID}",
+   "atlas": "O Atlas usa o mesmo modelo de alert configs, com categorias próprias do serviço (por exemplo, Auto-Scaling).",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/alerts/",
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/alerts-acknowledge-alert/"
+   ]
+  },
+  "backup": {
+   "simulated": "Snapshots, tamanhos e retenção vêm do seed; o snapshot manual cria uma entrada em memória.",
+   "real": "Os snapshots vão para snapshot stores que o cliente opera: file system, blockstore (um MongoDB) ou bucket S3-compatível. No 9.0, os agentes enviam blocos direto ao S3 por URLs pré-assinadas, e o Object Lock passa a cobrir também os oplog slices (cadeia de PIT imutável).",
+   "atlas": "Cloud Backup usa o snapshot nativo do provedor; Continuous Cloud Backup dá PIT; há distribuição multirregião e Backup Compliance Policy (WORM). Nenhum snapshot store para operar.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/admin/backup/snapshot-storage-page/",
+    "https://www.mongodb.com/docs/ops-manager/current/release-notes/application/",
+    "https://www.mongodb.com/docs/atlas/architecture/current/backups/"
+   ]
+  },
+  "restore": {
+   "simulated": "O job evolui em memória em ~9 s (queued → running → completed ou failed).",
+   "real": "Um restore job da API termina como FINISHED, IN_PROGRESS, BROKEN ou KILLED; o restore automatizado apaga e reescreve o destino pela Automation.",
+   "api": "POST /api/public/v1.0/groups/{PROJECT-ID}/clusters/{CLUSTER-ID}/restoreJobs",
+   "atlas": "No Atlas, restore de snapshot ou de ponto no tempo é pela UI ou Admin API, sem infraestrutura de backup própria.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/reference/api/restorejobs/create-one-restore-job-for-one-cluster/",
+    "https://www.mongodb.com/docs/ops-manager/current/tutorial/nav/restore-overview/"
+   ]
+  },
+  "users": {
+   "simulated": "Usuários do seed; criar e remover só mudam o estado em memória.",
+   "real": "No Ops Manager os usuários do banco fazem parte do automation config, e a Automation os aplica nos processos do deployment.",
+   "atlas": "No Atlas são os Database Users do projeto, pela UI ou Admin API.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/reference/api/automation-config/update-automation-config/"]
+  },
+  "roles": {
+   "simulated": "Roles customizadas do seed; mudanças só em memória.",
+   "real": "Roles customizadas também entram no automation config e são aplicadas pela Automation.",
+   "atlas": "No Atlas são as Custom Database Roles do projeto.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/reference/api/automation-config/update-automation-config/"]
+  },
+  "auth": {
+   "simulated": "As chaves de autenticação e criptografia só mudam a tela. A lista de IPs desta página representa a API Access List da Administration API, não uma lista de rede do banco.",
+   "real": "No Ops Manager cada API key tem a sua lista de IPs, que a organização pode exigir ('Require IP Access List for Ops Manager Administration API'). O acesso de rede ao mongod é firewall e bindIp do cliente. CSFLE e Queryable Encryption são configurados no driver da aplicação, não no Ops Manager.",
+   "atlas": "No Atlas há duas listas: a do plano de controle (API keys e service accounts) e a IP access list de dados do projeto, além de peering e private endpoints gerenciados.",
+   "sources": [
+    "https://www.mongodb.com/docs/ops-manager/current/tutorial/configure-public-api-access/",
+    "https://www.mongodb.com/docs/atlas/architecture/current/network-security/"
+   ]
+  },
+  "audit": {
+   "simulated": "Eventos de auditoria fixos do seed.",
+   "real": "Viriam do audit log do MongoDB Enterprise (auditing é recurso Enterprise), configurado nos processos do deployment.",
+   "atlas": "No Atlas o database auditing é ligado por projeto, sem servidor de log próprio.",
+   "sources": ["https://www.mongodb.com/docs/manual/core/auditing/"]
+  },
+  "ops-vs-atlas": {
+   "simulated": "Página estática: nada aqui é medido nem vem do estado da demo.",
+   "real": "Cada linha cita a documentação oficial lida em 2026-11-13. Sem preço e sem dado de cliente.",
+   "atlas": "Ver a tabela: uma linha por tema, com o que o Atlas faz no lugar.",
+   "sources": ["https://www.mongodb.com/docs/ops-manager/current/reference/mongodb-compatibility/"]
+  }
+ }
+}

@@ -19,3 +19,12 @@ with SEED_PATH.open(encoding="utf-8") as fh:
 def seed():
     """Retorna uma cópia fresca do estado inicial (usado no reset)."""
     return copy.deepcopy(_SEED)
+
+
+PRODUCT_STATUS_PATH = SEED_PATH.parent / "product_status.json"
+
+
+def product_status():
+    """Versões e matriz de suporte do Ops Manager simulado (fonte única com o mock)."""
+    with PRODUCT_STATUS_PATH.open(encoding="utf-8") as fh:
+        return json.load(fh)

@@ -144,72 +144,72 @@
    "id": "snap-00142",
    "cluster": "rs-prod-01",
    "type": "Automated",
-   "created": "2024-01-15 08:00",
+   "created": "2026-11-12 08:00",
    "size": "42 GB",
-   "expires": "2024-02-14",
+   "expires": "2026-12-12",
    "status": "ready"
   },
   {
    "id": "snap-00141",
    "cluster": "rs-prod-01",
    "type": "Automated",
-   "created": "2024-01-15 02:00",
+   "created": "2026-11-12 02:00",
    "size": "41 GB",
-   "expires": "2024-02-14",
+   "expires": "2026-12-12",
    "status": "ready"
   },
   {
    "id": "snap-00140",
    "cluster": "rs-prod-01",
    "type": "Automated",
-   "created": "2024-01-14 20:00",
+   "created": "2026-11-11 20:00",
    "size": "40 GB",
-   "expires": "2024-02-13",
+   "expires": "2026-12-11",
    "status": "ready"
   },
   {
    "id": "snap-00139",
    "cluster": "rs-prod-01",
    "type": "Manual",
-   "created": "2024-01-14 14:00",
+   "created": "2026-11-11 14:00",
    "size": "40 GB",
-   "expires": "2024-02-13",
+   "expires": "2026-12-11",
    "status": "ready"
   },
   {
    "id": "snap-00138",
    "cluster": "sharded-analytics",
    "type": "Automated",
-   "created": "2024-01-15 06:00",
+   "created": "2026-11-12 06:00",
    "size": "218 GB",
-   "expires": "2024-01-29",
+   "expires": "2026-11-26",
    "status": "ready"
   },
   {
    "id": "snap-00137",
    "cluster": "sharded-analytics",
    "type": "Automated",
-   "created": "2024-01-14 18:00",
+   "created": "2026-11-11 18:00",
    "size": "215 GB",
-   "expires": "2024-01-28",
+   "expires": "2026-11-25",
    "status": "ready"
   },
   {
    "id": "snap-00136",
    "cluster": "rs-staging",
    "type": "Automated",
-   "created": "2024-01-15 09:00",
+   "created": "2026-11-12 09:00",
    "size": "18 GB",
-   "expires": "2024-01-22",
+   "expires": "2026-11-19",
    "status": "ready"
   },
   {
    "id": "snap-00135",
    "cluster": "rs-staging",
    "type": "Automated",
-   "created": "2024-01-14 21:00",
+   "created": "2026-11-11 21:00",
    "size": "17 GB",
-   "expires": "2024-01-21",
+   "expires": "2026-11-18",
    "status": "ready"
   }
  ],
@@ -219,19 +219,19 @@
    "id": "rst-00142",
    "cluster": "rs-prod-01",
    "type": "PIT",
-   "point": "2024-01-14T09:00",
+   "point": "2026-11-11T09:00",
    "target": "Restore to rs-staging",
    "status": "completed",
-   "started": "2024-01-14 09:12"
+   "started": "2026-11-11 09:12"
   },
   {
    "id": "rst-00141",
    "cluster": "sharded-analytics",
    "type": "Snapshot",
-   "point": "2024-01-13T18:00",
+   "point": "2026-11-10T18:00",
    "target": "Automated",
    "status": "completed",
-   "started": "2024-01-13 18:45"
+   "started": "2026-11-10 18:45"
   }
  ],
  "users": [
@@ -242,7 +242,7 @@
     "root@admin"
    ],
    "db": "admin",
-   "created": "2023-06-01",
+   "created": "2026-03-29",
    "status": "active"
   },
   {
@@ -252,7 +252,7 @@
     "readWrite@app_db"
    ],
    "db": "app_db",
-   "created": "2023-08-12",
+   "created": "2026-06-09",
    "status": "active"
   },
   {
@@ -262,7 +262,7 @@
     "read@analytics"
    ],
    "db": "analytics",
-   "created": "2023-09-03",
+   "created": "2026-07-01",
    "status": "active"
   },
   {
@@ -272,7 +272,7 @@
     "backup@admin"
    ],
    "db": "admin",
-   "created": "2023-06-15",
+   "created": "2026-04-12",
    "status": "active"
   },
   {
@@ -282,7 +282,7 @@
     "clusterMonitor@admin"
    ],
    "db": "$external",
-   "created": "2023-07-20",
+   "created": "2026-05-17",
    "status": "active"
   },
   {
@@ -292,7 +292,7 @@
     "readWrite@legacy"
    ],
    "db": "legacy",
-   "created": "2022-12-01",
+   "created": "2025-09-28",
    "status": "disabled"
   }
  ],
@@ -417,7 +417,7 @@
  ],
  "automation_history": [
   {
-   "time": "2024-01-15 10:42",
+   "time": "2026-11-12 10:42",
    "cluster": "rs-prod-01",
    "change": "Oplog size 5GB → 10GB",
    "status": "success",
@@ -425,15 +425,15 @@
    "by": "admin"
   },
   {
-   "time": "2024-01-14 22:10",
+   "time": "2026-11-11 22:10",
    "cluster": "rs-staging",
-   "change": "Version upgrade 6.0.11 → 6.0.12",
+   "change": "MongoDB Agent 108.0.x → 109.0.0.9285-1 (upgrade do Ops Manager para 9.0)",
    "status": "success",
-   "duration": "12m 30s",
+   "duration": "3m 40s",
    "by": "System"
   },
   {
-   "time": "2024-01-14 14:00",
+   "time": "2026-11-11 14:00",
    "cluster": "sharded-analytics",
    "change": "Added shard shard-02",
    "status": "success",
@@ -441,7 +441,7 @@
    "by": "john.doe"
   },
   {
-   "time": "2024-01-13 09:00",
+   "time": "2026-11-10 09:00",
    "cluster": "rs-prod-01",
    "change": "TLS certificate rotation",
    "status": "success",
@@ -449,7 +449,7 @@
    "by": "admin"
   },
   {
-   "time": "2024-01-12 16:30",
+   "time": "2026-11-09 16:30",
    "cluster": "rs-prod-01",
    "change": "Add hidden secondary node",
    "status": "failed",
@@ -634,23 +634,23 @@
  "ip_access_list": [
   {
    "ip": "10.0.0.0/16",
-   "comment": "Internal VPC",
-   "added": "Jan 01"
+   "comment": "Rede interna (pipeline de automação)",
+   "added": "2026-11-02"
   },
   {
    "ip": "203.0.113.42/32",
-   "comment": "Office VPN gateway",
-   "added": "Jan 05"
+   "comment": "Jump host do time de DBA",
+   "added": "2026-11-05"
   },
   {
    "ip": "198.51.100.0/24",
-   "comment": "Monitoring subnet",
-   "added": "Jan 10"
+   "comment": "Servidores de monitoração",
+   "added": "2026-11-09"
   }
  ],
  "audit_events": [
   {
-   "ts": "2024-01-15 10:42:18",
+   "ts": "2026-11-12 10:42:18",
    "user": "admin@mongodb-brazil.com",
    "action": "createUser",
    "res": "app_db.app_service",
@@ -658,7 +658,7 @@
    "result": "success"
   },
   {
-   "ts": "2024-01-15 10:38:02",
+   "ts": "2026-11-12 10:38:02",
    "user": "app_service",
    "action": "authenticate",
    "res": "app_db",
@@ -666,7 +666,7 @@
    "result": "success"
   },
   {
-   "ts": "2024-01-15 10:35:51",
+   "ts": "2026-11-12 10:35:51",
    "user": "unknown",
    "action": "authenticate",
    "res": "admin",
@@ -674,7 +674,7 @@
    "result": "fail"
   },
   {
-   "ts": "2024-01-15 10:30:14",
+   "ts": "2026-11-12 10:30:14",
    "user": "admin@mongodb-brazil.com",
    "action": "dropCollection",
    "res": "staging.temp_data",
@@ -682,7 +682,7 @@
    "result": "success"
   },
   {
-   "ts": "2024-01-15 10:22:40",
+   "ts": "2026-11-12 10:22:40",
    "user": "analytics_ro",
    "action": "authCheck",
    "res": "analytics.events (find)",
@@ -690,7 +690,7 @@
    "result": "success"
   },
   {
-   "ts": "2024-01-15 10:18:33",
+   "ts": "2026-11-12 10:18:33",
    "user": "analytics_ro",
    "action": "authCheck",
    "res": "app_db.users (find)",
@@ -698,7 +698,7 @@
    "result": "fail"
   },
   {
-   "ts": "2024-01-15 10:05:11",
+   "ts": "2026-11-12 10:05:11",
    "user": "backup_user",
    "action": "authenticate",
    "res": "admin",
@@ -706,7 +706,7 @@
    "result": "success"
   },
   {
-   "ts": "2024-01-15 09:58:02",
+   "ts": "2026-11-12 09:58:02",
    "user": "admin@mongodb-brazil.com",
    "action": "updateRole",
    "res": "admin.appWriter",
@@ -716,49 +716,49 @@
  ],
  "activity": [
   {
-   "time": "2024-01-15 10:42",
+   "time": "2026-11-12 10:42",
    "user": "admin@mongodb-brazil.com",
    "action": "EDIT",
    "resource": "rs-prod-01",
    "details": "Changed oplog size to 10GB"
   },
   {
-   "time": "2024-01-15 09:15",
+   "time": "2026-11-12 09:15",
    "user": "System",
    "action": "SNAPSHOT",
    "resource": "rs-prod-01",
    "details": "Automated snapshot completed (42GB)"
   },
   {
-   "time": "2024-01-15 08:30",
+   "time": "2026-11-12 08:30",
    "user": "System",
    "action": "ALERT RESOLVED",
    "resource": "rs-prod-01",
    "details": "High connections alert auto-resolved"
   },
   {
-   "time": "2024-01-15 07:00",
+   "time": "2026-11-12 07:00",
    "user": "john.doe@mongodb-brazil.com",
    "action": "CREATE",
    "resource": "sharded-analytics",
    "details": "Added shard: shard-03"
   },
   {
-   "time": "2024-01-14 22:10",
+   "time": "2026-11-11 22:10",
    "user": "System",
-   "action": "UPGRADE",
+   "action": "AGENT UPGRADE",
    "resource": "rs-staging",
-   "details": "MongoDB upgraded 6.0.11 → 6.0.12"
+   "details": "MongoDB Agent atualizado para 109.0.0.9285-1 (Ops Manager 9.0)"
   },
   {
-   "time": "2024-01-14 18:00",
+   "time": "2026-11-11 18:00",
    "user": "admin@mongodb-brazil.com",
    "action": "USER CREATE",
    "resource": "Security",
    "details": "New user: app_readonly created"
   },
   {
-   "time": "2024-01-14 14:20",
+   "time": "2026-11-11 14:20",
    "user": "admin@mongodb-brazil.com",
    "action": "BACKUP CONFIG",
    "resource": "rs-prod-01",

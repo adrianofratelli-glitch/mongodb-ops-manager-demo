@@ -24,7 +24,7 @@ function AuthRow({ title, desc, checked, onChange }) {
 export default function Auth({ toast }) {
   const [loadError, setLoadError] = useState(false)
   const [ips, setIps] = useState(null)
-  const [mech, setMech] = useState({ scram256: true, scram1: false, x509: true, ldap: false, kerberos: false, tls: true, rest: true, kmip: false, csfle: false })
+  const [mech, setMech] = useState({ scram256: true, scram1: false, x509: true, ldap: false, kerberos: false, tls: true, rest: true, kmip: false })
   const reload = () => API.ips().then(setIps).catch(() => setLoadError(true))
   useEffect(() => { reload() }, [])
   if (loadError) return <div role="alert">Backend indisponível. <Button onClick={() => { setLoadError(false); reload() }}>Tentar novamente</Button></div>
@@ -57,14 +57,20 @@ export default function Auth({ toast }) {
           <AuthRow title="TLS/SSL (in-transit)" desc="Encrypt client & intra-cluster traffic" checked={mech.tls} onChange={() => flip('tls', 'TLS')} />
           <AuthRow title="Encryption at Rest" desc="WiredTiger AES-256" checked={mech.rest} onChange={() => flip('rest', 'Encryption at Rest')} />
           <AuthRow title="KMIP Key Management" desc="External key management server" checked={mech.kmip} onChange={() => flip('kmip', 'KMIP')} />
-          <AuthRow title="Client-Side Field Level Encryption" desc="Encrypt specific fields" checked={mech.csfle} onChange={() => flip('csfle', 'CSFLE')} />
+          <div style={{ padding: '12px 0' }}>
+            <Body weight="medium">CSFLE e Queryable Encryption</Body>
+            <Description>Configurados no driver da aplicação (chaves e esquema de criptografia), não no Ops Manager. Por isso não há chave aqui.</Description>
+          </div>
           <div style={{ marginTop: spacing[300] }}>
             <Button onClick={() => toast('Certificados rotacionados', 'Novos certs TLS ativos em todos os nós.', 'success')}>🔄 Rotate TLS Certificates</Button>
           </div>
         </Card>
       </Grid>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}><Subtitle>🌐 IP Access List</Subtitle></div>
+        <div style={{ padding: spacing[400], borderBottom: `1px solid #fdfff5` }}>
+          <Subtitle>🌐 API Access List · Ops Manager Administration API</Subtitle>
+          <Description>De onde as API keys podem chamar a Administration API (a organização pode exigir a lista). Não é uma lista de rede do banco: on-prem, o acesso ao <code>mongod</code> é firewall e <code>bindIp</code> do cliente.</Description>
+        </div>
         <DataTable columns={ipCols} rows={ips} />
       </Card>
     </div>

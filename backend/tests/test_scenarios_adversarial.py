@@ -54,7 +54,7 @@ CALLS = {
 GETS = {
     "clusters": "/api/clusters", "automation": "/api/automation", "backup": "/api/backup",
     "restoreJobs": "/api/restore", "perfAdvisor": "/api/perf-advisor", "roles": "/api/roles",
-    "alerts": "/api/alerts", "ips": "/api/security/ip", "lab": "/api/lab",
+    "alerts": "/api/alerts", "ips": "/api/security/ip", "lab": "/api/lab", "meta": "/api/meta",
 }
 
 

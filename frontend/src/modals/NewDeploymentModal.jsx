@@ -18,8 +18,8 @@ export default function NewDeploymentModal({ open, onClose, toast, onCreated }) 
     if (!name.trim()) { toast('Validação', 'Nome do cluster é obrigatório.', 'warning'); return }
     setBusy(true)
     try {
-      await API.createCluster({ name: name.trim(), type, version, members: parseInt(members) })
-      toast(`${name} provisionado!`, `${type} criado com sucesso.`, 'success')
+      const created = await API.createCluster({ name: name.trim(), type, version, members: parseInt(members) })
+      toast(`${name} provisionado!`, created?.warning || `${type} criado com sucesso.`, created?.warning ? 'warning' : 'success')
       onClose(); onCreated?.(); setName('')
     } catch (e) {
       toast('Erro', e?.response?.data?.detail || 'Falha ao provisionar.', 'warning')
@@ -39,9 +39,9 @@ export default function NewDeploymentModal({ open, onClose, toast, onCreated }) 
         <TextInput label="Cluster Name" placeholder="ex: rs-prod-02" value={name} onChange={(e) => setName(e.target.value)} />
         <Select label="MongoDB Version" value={version} onChange={setVersion} allowDeselect={false}>
           <Option value="9.0.7">9.0.7</Option>
+          <Option value="8.0.12">8.0.12</Option>
           <Option value="7.0.5">7.0.5</Option>
-          <Option value="6.0.12">6.0.12</Option>
-          <Option value="5.0.24">5.0.24</Option>
+          <Option value="6.0.12">6.0.12 (Deprecated no OM 9.0)</Option>
         </Select>
         {type !== 'Standalone' && (
           <Select label="Number of Members" value={members} onChange={setMembers} allowDeselect={false}>

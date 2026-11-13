@@ -43,7 +43,7 @@ def _exercise_everything():
         ("delete", "/api/automation/pending/pc-1", None),
         ("post", "/api/agents/upgrade", None),
         ("post", "/api/backup/snapshot?cluster=rs-staging", None),
-        ("post", "/api/restore", {"cluster": "rs-prod-01", "point": "2024-01-15T05:00"}),
+        ("post", "/api/restore", {"cluster": "rs-prod-01", "point": "2026-11-12T05:00"}),
         ("post", "/api/alerts/1/acknowledge", None),
         ("post", "/api/alerts/2/resolve", None),
         ("post", "/api/alerts/configs", {"cond": "Oplog window is below", "thresh": "24h", "target": "rs-prod-01"}),
@@ -151,7 +151,7 @@ def test_two_tabs_upgrading_the_same_cluster_start_one_rolling_upgrade():
 
 def test_parallel_restores_of_same_cluster_create_one_job():
     before = len(client.get("/api/restore").json())
-    statuses = _parallel(lambda: client.post("/api/restore", json={"cluster": "rs-prod-01", "point": "2024-01-15T05:00"}))
+    statuses = _parallel(lambda: client.post("/api/restore", json={"cluster": "rs-prod-01", "point": "2026-11-12T05:00"}))
     assert statuses.count(200) == 1, statuses
     assert len(client.get("/api/restore").json()) == before + 1
 

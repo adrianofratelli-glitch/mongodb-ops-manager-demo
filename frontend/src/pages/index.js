@@ -22,6 +22,7 @@ const READY = {
   audit: lazy(() => import('./Audit')),
   activity: lazy(() => import('./Activity')),
   settings: lazy(() => import('./Settings')),
+  'ops-vs-atlas': lazy(() => import('./OpsVsAtlas')),
 }
 
 export const PAGES = Object.fromEntries(

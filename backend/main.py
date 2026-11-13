@@ -43,9 +43,14 @@ STATE_LOCK = RLock()
 # Versão exibida da plataforma simulada e do MongoDB Agent empacotado com ela
 # (release notes do Ops Manager: 9.0.0 em 2026-09-29 com Agent 109.0.0.9285-1;
 # 9.0.1 em 2026-10-05 com Agent 109.0.1.9309-1).
-OPS_MANAGER_VERSION = "9.0.1"
-AGENT_LATEST = "109.0.1.9309-1"
-AGENT_SEED = "109.0.0.9285-1"  # versão dos agents no seed (antes do "Upgrade All")
+# Fonte única (backend e mock): frontend/src/api/product_status.json, conferido na
+# doc oficial na data de `checked_on` (detalhes em docs/status-de-produto.md).
+PRODUCT = data.product_status()
+OPS_MANAGER_VERSION = PRODUCT["ops_manager_version"]
+AGENT_LATEST = PRODUCT["agent_latest"]
+AGENT_SEED = PRODUCT["agent_seed"]  # versão dos agents no seed (antes do "Upgrade All")
+# Matriz de compatibilidade do Ops Manager 9.0: supported / deprecated / eol.
+SUPPORT_MATRIX = PRODUCT["support_matrix"]
 ADMIN = "admin@mongodb-brazil.com"
 
 # Release series que a demo conhece. O Ops Manager só faz upgrade de uma
@@ -98,6 +103,20 @@ def _check_known_version(version: str):
             422,
             f"Versão {version} fora do catálogo da demo (release series {', '.join(RELEASE_SERIES)}).",
         )
+
+
+def _support_warning(version: str) -> Optional[str]:
+    """Recusa série EOL no Ops Manager 9.0; devolve aviso para série Deprecated."""
+    s = _series(version)
+    status = SUPPORT_MATRIX.get(s)
+    if status == "eol":
+        raise HTTPException(
+            422,
+            f"MongoDB {s} é EOL no Ops Manager {OPS_MANAGER_VERSION} (matriz de compatibilidade): use 7.0, 8.0 ou 9.0.",
+        )
+    if status == "deprecated":
+        return f"MongoDB {s} está Deprecated no Ops Manager {OPS_MANAGER_VERSION}: ainda funciona, mas o suporte sai na próxima versão. Planeje o upgrade."
+    return None
 
 
 # ── Modelos de request ───────────────────────────────────────
@@ -182,7 +201,11 @@ class NewIP(BaseModel):
 # ════════════════════════════════════════════════════════════
 @app.get("/api/meta")
 def get_meta():
-    return {"org": STATE["org"], "project": STATE["project"], "ops_manager_version": OPS_MANAGER_VERSION, "simulated": True}
+    return {
+        "org": STATE["org"], "project": STATE["project"], "ops_manager_version": OPS_MANAGER_VERSION,
+        "agent_latest": AGENT_LATEST, "support_matrix": SUPPORT_MATRIX, "checked_on": PRODUCT["checked_on"],
+        "simulated": True,
+    }
 
 
 @app.get("/api/dashboard")
@@ -388,6 +411,7 @@ def create_cluster(req: NewCluster):
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", name):
         raise HTTPException(422, "Nome inválido: use letras, números, ponto, hífen ou underscore (até 64).")
     _check_known_version(req.version)
+    warning = _support_warning(req.version)
     req.name = name
     with STATE_LOCK:
         if find_cluster(req.name):
@@ -406,7 +430,7 @@ def create_cluster(req: NewCluster):
         STATE["clusters"].append(cluster)
         _register_agents(cluster)
         _log_activity(ADMIN, "CREATE", req.name, f"Provisioned {req.type} with {members} node(s)")
-    return cluster
+    return {**cluster, "warning": warning} if warning else cluster
 
 
 @app.delete("/api/clusters/{cid}")
@@ -1238,7 +1262,7 @@ def _same_network(a: str, b: str) -> bool:
 def add_ip(req: NewIP):
     with STATE_LOCK:
         if any(_same_network(e["ip"], req.ip) for e in STATE["ip_access_list"]):
-            raise HTTPException(409, f"{req.ip} já está na IP access list.")
+            raise HTTPException(409, f"{req.ip} já está na API access list.")
         entry = {"ip": req.ip, "comment": req.comment or "—", "added": "just now"}
         STATE["ip_access_list"].append(entry)
     return entry

@@ -6,6 +6,7 @@ import TopBar from './components/TopBar'
 import { Loading } from './components/ui'
 import Sidebar from './components/Sidebar'
 import QueryDetails from './components/QueryDetails'
+import ProductNote from './components/ProductNote'
 import { API } from './api/client'
 import { PAGES } from './pages'
 
@@ -57,6 +58,7 @@ function Shell() {
         <div className="ops-shell__body">
           <Sidebar active={section} onNavigate={setSection} counts={counts} />
           <main id="conteudo-principal" className="ops-main" tabIndex="-1">
+            <ProductNote key={section} section={section} />
             <Suspense fallback={<Loading />}>
               <Page toast={toast} navigate={setSection} refreshCounts={refreshCounts} meta={meta} setMeta={setMeta} />
             </Suspense>

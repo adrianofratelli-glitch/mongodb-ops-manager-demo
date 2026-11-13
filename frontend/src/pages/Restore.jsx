@@ -15,7 +15,7 @@ import { API, errMsg } from '../api/client'
 const STATUS_BADGE = { queued: ['lightgray', '⏳ Queued'], running: ['yellow', '● Running'], completed: ['green', '✓ Completed'], failed: ['red', '✕ Failed'] }
 const ATIVO = (j) => j.status === 'queued' || j.status === 'running'
 
-// "2024-01-15 08:00" (UTC) → valor aceito por <input type="datetime-local">
+// "2026-11-12 08:00" (UTC) → valor aceito por <input type="datetime-local">
 const toInput = (ts) => (ts ? ts.replace(' ', 'T').slice(0, 16) : '')
 
 export default function Restore({ toast }) {

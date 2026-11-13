@@ -9,6 +9,7 @@
 // ──────────────────────────────────────────────────────────────
 import SEED from './seed.json' with { type: 'json' }
 import LAB from './lab_scenarios.json' with { type: 'json' }
+import PRODUCT from './product_status.json' with { type: 'json' }
 
 const seed = () => JSON.parse(JSON.stringify(SEED))
 
@@ -59,9 +60,18 @@ function walk(store, key, base, noise, mn = 0, mx = null, nd = 1) {
 const shortHost = (node) => node.host.split(':')[0].split('.')[0]
 
 
-const OPS_MANAGER_VERSION = '9.0.1'
-const AGENT_LATEST = '109.0.1.9309-1'
-const AGENT_SEED = '109.0.0.9285-1'
+// Fonte única com o backend (data.product_status): versões e matriz de suporte do OM 9.0.
+const OPS_MANAGER_VERSION = PRODUCT.ops_manager_version
+const AGENT_LATEST = PRODUCT.agent_latest
+const AGENT_SEED = PRODUCT.agent_seed
+const SUPPORT_MATRIX = PRODUCT.support_matrix
+function supportWarning(v) {
+  const s = series(v)
+  const status = SUPPORT_MATRIX[s]
+  if (status === 'eol') throw new ApiError(`MongoDB ${s} é EOL no Ops Manager ${OPS_MANAGER_VERSION} (matriz de compatibilidade): use 7.0, 8.0 ou 9.0.`, 422)
+  if (status === 'deprecated') return `MongoDB ${s} está Deprecated no Ops Manager ${OPS_MANAGER_VERSION}: ainda funciona, mas o suporte sai na próxima versão. Planeje o upgrade.`
+  return null
+}
 // Laboratório real (backend/lab.py): no build estático não há backend nem MongoDB,
 // então o contrato é o mesmo do backend sem MONGODB_URI — desligado, com motivo.
 const LAB_REASON = 'Build estático (GitHub Pages): sem backend nem MongoDB. O laboratório real roda só com o FastAPI local e MONGODB_URI.'
@@ -298,7 +308,7 @@ const choice = (arr) => arr[rand(0, arr.length)]
 
 
 export const MockAPI = {
-  meta: () => ok({ org: STATE.org, project: STATE.project, ops_manager_version: OPS_MANAGER_VERSION, simulated: true }),
+  meta: () => ok({ org: STATE.org, project: STATE.project, ops_manager_version: OPS_MANAGER_VERSION, agent_latest: AGENT_LATEST, support_matrix: SUPPORT_MATRIX, checked_on: PRODUCT.checked_on, simulated: true }),
 
   dashboard: () => {
     advanceAll()
@@ -327,6 +337,7 @@ export const MockAPI = {
     if (!(Number.isInteger(port) && port >= 1 && port <= 65535)) throw new ApiError('Porta inválida.', 422)
     const version = b.version || '7.0.5'
     checkKnownVersion(version)
+    const warning = supportWarning(version)
     if (findCluster(nome)) throw new ApiError(`Cluster "${nome}" já existe.`)
     const typeKey = { 'Replica Set': 'rs', 'Sharded Cluster': 'sharded', Standalone: 'standalone' }[b.type]
     const n = typeKey === 'standalone' ? 1 : members
@@ -339,7 +350,7 @@ export const MockAPI = {
     STATE.clusters.push(cluster)
     registerAgents(cluster)
     logActivity(ADMIN, 'CREATE', nome, `Provisioned ${b.type} with ${n} node(s)`)
-    return cluster
+    return warning ? { ...cluster, warning } : cluster
   }),
   deleteCluster: (id) => run(() => {
     advanceAll()
@@ -703,7 +714,7 @@ export const MockAPI = {
   addIp: (b) => run(() => {
     if (!validNetwork(b.ip) || String(b.ip).length > 64) throw new ApiError('IP ou CIDR inválido', 422)
     if (String(b.comment || '').length > 240) throw new ApiError('Comentário longo demais.', 422)
-    if (STATE.ip_access_list.some((e) => sameNetwork(e.ip, b.ip))) throw new ApiError(`${b.ip} já está na IP access list.`)
+    if (STATE.ip_access_list.some((e) => sameNetwork(e.ip, b.ip))) throw new ApiError(`${b.ip} já está na API access list.`)
     const e = { ip: b.ip, comment: b.comment || '—', added: 'just now' }
     STATE.ip_access_list.push(e)
     return e

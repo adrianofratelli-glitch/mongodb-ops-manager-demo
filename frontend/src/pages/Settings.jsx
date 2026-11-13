@@ -30,10 +30,11 @@ export default function Settings({ toast, navigate, refreshCounts }) {
           <Description>Campos ilustrativos, somente leitura nesta simulação. A única ação real desta página é o Reset Demo.</Description>
           <TextInput label="Project Name" value="Production" disabled onChange={() => {}} />
           <TextInput label="Organization" value="MongoDB Brazil" disabled onChange={() => {}} />
-          <Select label="Default MongoDB Version" value="7.0.5" disabled onChange={() => {}} allowDeselect={false}>
-            <Option value="7.0.5">7.0.5</Option>
-            <Option value="6.0.12">6.0.12</Option>
-            <Option value="5.0.24">5.0.24</Option>
+          <Select label="Default MongoDB Version" value="8.0" disabled onChange={() => {}} allowDeselect={false}
+            description="Séries que o Ops Manager 9.0 gerencia: 7.0, 8.0 e 9.0 (6.0 Deprecated; 5.0 e 4.4 EOL).">
+            <Option value="9.0">9.0</Option>
+            <Option value="8.0">8.0</Option>
+            <Option value="7.0">7.0</Option>
           </Select>
           <div style={{ display: 'flex', gap: 10 }}>
             <Button variant="dangerOutline" disabled={resetting} onClick={() => setConfirmReset(true)}>{resetting ? 'Restaurando…' : 'Reset Demo'}</Button>

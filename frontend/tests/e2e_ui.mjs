@@ -15,7 +15,7 @@ const [mode = 'mock', source = '/tmp/opsm-dist-mock'] = process.argv.slice(2)
 const ORIGIN = mode === 'live' ? source.replace(/\/$/, '') : 'http://ops.demo'
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' }
 const results = []
-const check = (name, cond, extra = '') => { results.push({ name, ok: !!cond, extra }); if (!cond) console.error('FAIL', name, extra) }
+const check = (name, cond, extra = "") => { results.push({ name, ok: !!cond, extra }); if (process.env.E2E_VERBOSE) console.error(cond ? "ok  " : "FAIL", name); else if (!cond) console.error("FAIL", name, extra) }
 
 // Modo bridge: /api/* vai para o FastAPI real executado em processo (backend/tests/asgi_bridge.py).
 let bridge = null
@@ -53,11 +53,13 @@ async function newPage(viewport = { width: 1440, height: 900 }, opts = {}) {
   await page.goto(`${ORIGIN}/`)
   return { ctx, page, errors }
 }
-const GROUP = { Dashboard: 'Visão geral', 'Activity Feed': 'Visão geral', 'All Clusters': 'Implantações', Automation: 'Implantações', Agents: 'Implantações', 'Project Settings': 'Implantações', Metrics: 'Monitoramento', 'Performance Advisor': 'Monitoramento', 'Real-Time': 'Monitoramento', Alerts: 'Monitoramento', Backup: 'Proteção de dados', Restore: 'Proteção de dados', 'Database Users': 'Segurança', 'Custom Roles': 'Segurança', Authentication: 'Segurança', 'Audit Log': 'Segurança' }
+const GROUP = { Dashboard: 'Visão geral', 'Activity Feed': 'Visão geral', 'Ops Manager × Atlas': 'Visão geral', 'All Clusters': 'Implantações', Automation: 'Implantações', Agents: 'Implantações', 'Project Settings': 'Implantações', Metrics: 'Monitoramento', 'Performance Advisor': 'Monitoramento', 'Real-Time': 'Monitoramento', Alerts: 'Monitoramento', Backup: 'Proteção de dados', Restore: 'Proteção de dados', 'Database Users': 'Segurança', 'Custom Roles': 'Segurança', Authentication: 'Segurança', 'Audit Log': 'Segurança' }
 // A SideNav mostra um grupo por vez: escolhe o grupo no <select> e clica no item.
 async function nav(page, label) {
   await page.getByLabel('Área operacional').selectOption(GROUP[label])
-  await page.locator('aside').getByText(label, { exact: true }).first().click()
+  // O item pode carregar um contador ("Alerts 3"): casa o nome com o contador opcional.
+  const name = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( \\d+)?$`)
+  await page.locator('aside').getByRole('button', { name }).first().click()
 }
 const toastText = (page) => page.locator('[role="status"], [data-testid*="toast"], [class*="toast"]').allInnerTexts().then((t) => t.join(' | '))
 
@@ -167,6 +169,42 @@ async function layoutChecks() {
   await ctx.close()
 }
 
+// Cada tela diz o que é simulado, o que viria do Ops Manager 9.0 real e como fica no Atlas.
+async function productChecks() {
+  const { ctx, page, errors } = await newPage()
+  await page.getByText('Simulação · dados fictícios').waitFor({ timeout: 10000 })
+  let semNota = []
+  for (const label of Object.keys(GROUP)) {
+    try { await nav(page, label) } catch (e) { semNota.push(`${label} (nav: ${e.message.split('\n')[0].slice(0, 60)})`); continue }
+    const note = page.getByTestId('product-note')
+    try { await note.waitFor({ timeout: 5000 }) } catch { semNota.push(label); continue }
+    try { await note.locator('summary').click({ timeout: 5000 }) } catch (e) { semNota.push(`${label} (clique: ${e.message.split('\n')[0].slice(0, 80)})`); continue }
+    if (!(await note.getByText('No Ops Manager 9.0 real').isVisible()) || !(await note.getByText('No Atlas', { exact: true }).isVisible())) semNota.push(label)
+  }
+  check(`nota de produto em ${Object.keys(GROUP).length}/${Object.keys(GROUP).length} telas`, semNota.length === 0, semNota.join(', '))
+  await nav(page, 'Performance Advisor')
+  await page.getByTestId('product-note').locator('summary').click()
+  check('PA cita o endpoint real suggestedIndexes', (await page.getByText('/performanceAdvisor/suggestedIndexes', { exact: false }).count()) >= 1)
+  await nav(page, 'All Clusters')
+  await page.getByText('rs-staging', { exact: true }).first().waitFor({ timeout: 8000 })
+  check('rs-staging 6.0 marcado Deprecated no OM 9.0', (await page.getByText('Deprecated no OM 9.0').count()) === 1)
+  await nav(page, 'Authentication')
+  const apiList = await page.getByText('API Access List · Ops Manager Administration API').waitFor({ timeout: 8000 }).then(() => true, () => false)
+  check('Auth chama a lista de API Access List', apiList)
+  check('Auth não oferece chave de CSFLE', (await page.getByRole('switch', { name: 'Client-Side Field Level Encryption' }).count()) === 0)
+  await nav(page, 'Ops Manager × Atlas')
+  await page.getByRole('heading', { name: 'Ops Manager × Atlas' }).first().waitFor({ timeout: 5000 }).catch(() => {})
+  const linhas = await page.locator('.ops-compare__row:not(.ops-compare__head)').count()
+  check('comparativo com 10 temas', linhas === 10, `linhas=${linhas}`)
+  check('comparativo explica mongot autogerenciado', (await page.getByText('mongot', { exact: false }).count()) >= 1)
+  await page.setViewportSize({ width: 360, height: 800 })
+  await page.waitForTimeout(200)
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  check('comparativo 360px sem scroll horizontal', overflow <= 1, `overflow=${overflow}`)
+  check('telas de produto sem erros de JS', errors.length === 0, errors.join('; '))
+  await ctx.close()
+}
+
 async function offlineChecks() {
   const { ctx, page } = await newPage()
   await nav(page, 'Metrics')
@@ -183,7 +221,7 @@ async function offlineChecks() {
 
 try {
   if (mode === 'offline') await offlineChecks()
-  else { await demoRun(1); await demoRun(2); await layoutChecks() }
+  else { await demoRun(1); await demoRun(2); await layoutChecks(); await productChecks() }
 } catch (e) { check('execução sem exceção', false, e.message.split('\n')[0]) }
 await browser.close()
 bridge?.close()

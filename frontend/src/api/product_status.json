@@ -1,0 +1,19 @@
+{
+ "checked_on": "2026-11-13",
+ "ops_manager_version": "9.0.1",
+ "agent_seed": "109.0.0.9285-1",
+ "agent_latest": "109.0.1.9309-1",
+ "support_matrix": {
+  "9.0": "supported",
+  "8.0": "supported",
+  "7.0": "supported",
+  "6.0": "deprecated",
+  "5.0": "eol",
+  "4.4": "eol"
+ },
+ "sources": {
+  "release_notes": "https://www.mongodb.com/docs/ops-manager/current/release-notes/application/",
+  "compatibility": "https://www.mongodb.com/docs/ops-manager/current/reference/mongodb-compatibility/",
+  "lifecycles": "https://www.mongodb.com/legal/support-policy/lifecycles"
+ }
+}

@@ -89,9 +89,9 @@
       "name": "Restore sem backup é recusado; com snapshot recém-criado funciona",
       "steps": [
         {"call": "createCluster", "args": [{"name": "fresh-rs", "type": "Replica Set", "version": "7.0.5", "members": 3}], "expect": "ok"},
-        {"call": "startRestore", "args": [{"cluster": "fresh-rs", "point": "2024-01-15T08:00", "target": "same"}], "expect": {"status": 409, "contains": "nenhum snapshot"}},
-        {"call": "startRestore", "args": [{"cluster": "mongo-dev-01", "point": "2024-01-15T08:00", "target": "same"}], "expect": {"status": 409, "contains": "Standalone"}},
-        {"call": "startRestore", "args": [{"cluster": "ghost", "point": "2024-01-15T08:00", "target": "same"}], "expect": {"status": 404}},
+        {"call": "startRestore", "args": [{"cluster": "fresh-rs", "point": "2026-11-12T08:00", "target": "same"}], "expect": {"status": 409, "contains": "nenhum snapshot"}},
+        {"call": "startRestore", "args": [{"cluster": "mongo-dev-01", "point": "2026-11-12T08:00", "target": "same"}], "expect": {"status": 409, "contains": "Standalone"}},
+        {"call": "startRestore", "args": [{"cluster": "ghost", "point": "2026-11-12T08:00", "target": "same"}], "expect": {"status": 404}},
         {"call": "takeSnapshot", "args": ["fresh-rs"], "expect": "ok"},
         {"call": "startRestore", "args": [{"cluster": "fresh-rs", "snapshot_id": "snap-00143", "target": "same"}], "expect": "ok"},
         {"get": "restoreJobs", "path": "0.type", "equals": "Snapshot"},
@@ -103,17 +103,17 @@
       "steps": [
         {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "target": "same"}], "expect": {"status": 422, "contains": "Informe o ponto"}},
         {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "amanhã cedo", "target": "same"}], "expect": {"status": 422, "contains": "inválido"}},
-        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2023-01-01T00:00", "target": "same"}], "expect": {"status": 422, "contains": "fora da janela"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2025-10-29T00:00", "target": "same"}], "expect": {"status": 422, "contains": "fora da janela"}},
         {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "snapshot_id": "snap-00136", "target": "same"}], "expect": {"status": 404}},
-        {"call": "startRestore", "args": [{"cluster": "sharded-analytics", "point": "2024-01-15T00:00", "target": "rs-staging"}], "expect": {"status": 409, "contains": "topologia"}},
-        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T05:00", "target": "ghost"}], "expect": {"status": 404}},
-        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T05:00", "target": "rs-staging"}], "expect": "ok"},
-        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T06:00", "target": "same"}], "expect": {"status": 409, "contains": "em andamento"}},
-        {"call": "startRestore", "args": [{"cluster": "rs-staging", "point": "2024-01-15T00:00", "target": "same"}], "expect": {"status": 409, "contains": "em andamento"}},
+        {"call": "startRestore", "args": [{"cluster": "sharded-analytics", "point": "2026-11-12T00:00", "target": "rs-staging"}], "expect": {"status": 409, "contains": "topologia"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2026-11-12T05:00", "target": "ghost"}], "expect": {"status": 404}},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2026-11-12T05:00", "target": "rs-staging"}], "expect": "ok"},
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2026-11-12T06:00", "target": "same"}], "expect": {"status": 409, "contains": "em andamento"}},
+        {"call": "startRestore", "args": [{"cluster": "rs-staging", "point": "2026-11-12T00:00", "target": "same"}], "expect": {"status": 409, "contains": "em andamento"}},
         {"get": "restoreJobs", "path": "0.type", "equals": "PIT"},
         {"advance": 10},
         {"get": "restoreJobs", "path": "0.status", "equals": "completed"},
-        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2024-01-15T06:00", "target": "same"}], "expect": "ok"}
+        {"call": "startRestore", "args": [{"cluster": "rs-prod-01", "point": "2026-11-12T06:00", "target": "same"}], "expect": "ok"}
       ]
     },
     {
@@ -186,14 +186,14 @@
       "name": "Restore no próprio cluster bloqueia Automation nele; upgrade no destino bloqueia restore",
       "steps": [
         {"call":  "upgradeCluster", "args":  ["rs-staging", {"target_version":  "6.0.13"}], "expect":  "ok"},
-        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "rs-staging"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}},
-        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "same"}], "expect":  "ok"},
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2026-11-12T05:00", "target":  "rs-staging"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}},
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2026-11-12T05:00", "target":  "same"}], "expect":  "ok"},
         {"call":  "deleteCluster", "args":  ["rs-prod-01"], "expect":  {"status":  409, "contains":  "destino do restore"}},
         {"call":  "upgradeCluster", "args":  ["rs-prod-01", {"target_version":  "7.0.6"}], "expect":  {"status":  409, "contains":  "como destino"}},
         {"advance":  10},
         {"get":  "restoreJobs", "path":  "0.status", "equals":  "completed"},
         {"call":  "upgradeCluster", "args":  ["rs-prod-01", {"target_version":  "7.0.6"}], "expect":  "ok"},
-        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2024-01-15T05:00", "target":  "same"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}}
+        {"call":  "startRestore", "args":  [{"cluster":  "rs-prod-01", "point":  "2026-11-12T05:00", "target":  "same"}], "expect":  {"status":  409, "contains":  "Restore bloqueado"}}
       ]
     },
     {
@@ -233,6 +233,20 @@
         {"call": "labCreateIndex", "args": ["ix-1"], "expect": {"status": 503, "contains": "Laboratório desligado"}},
         {"call": "labSeed", "args": [], "expect": {"status": 503, "contains": "Laboratório desligado"}},
         {"call": "labReset", "args": [], "expect": {"status": 503, "contains": "Laboratório desligado"}}
+      ]
+    },
+    {
+      "name": "matriz de suporte do Ops Manager 9.0 (EOL recusado, 6.0 Deprecated com aviso)",
+      "steps": [
+        {"get": "meta", "path": "support_matrix", "equals": {"9.0": "supported", "8.0": "supported", "7.0": "supported", "6.0": "deprecated", "5.0": "eol", "4.4": "eol"}},
+        {"get": "meta", "path": "agent_latest", "equals": "109.0.1.9309-1"},
+        {"call": "createCluster", "args": [{"name": "legado-44", "type": "Replica Set", "version": "4.4.29", "members": 3}], "expect": {"status": 422, "contains": "EOL no Ops Manager 9.0.1"}},
+        {"call": "createCluster", "args": [{"name": "legado-50", "type": "Replica Set", "version": "5.0.30", "members": 3}], "expect": {"status": 422, "contains": "use 7.0, 8.0 ou 9.0"}},
+        {"call": "createCluster", "args": [{"name": "legado-60", "type": "Replica Set", "version": "6.0.20", "members": 3}], "expect": "ok"},
+        {"call": "createCluster", "args": [{"name": "novo-90", "type": "Replica Set", "version": "9.0.7", "members": 3}], "expect": "ok"},
+        {"get": "clusters", "find": {"id": "legado-60"}, "path": "version", "equals": "6.0.20"},
+        {"get": "clusters", "find": {"id": "legado-60"}, "path": "warning", "equals": null},
+        {"call": "upgradeCluster", "args": ["legado-60", {"target_version": "7.0.5"}], "expect": "ok"}
       ]
     }
   ]
